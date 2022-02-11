@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="Main.cpp" />
+    <ClCompile Include="XedWrap.cpp">
+      <Filter>Default</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Windas.h">
+      <Filter>Default</Filter>
+    </ClInclude>
+    <ClInclude Include="XedWrap.h">
+      <Filter>Default</Filter>
+    </ClInclude>
+    <ClInclude Include="InstRope.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Default">
+      <UniqueIdentifier>{3196f36e-f608-4f54-bae5-afde61b9b852}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core">
+      <UniqueIdentifier>{9f5a2015-a20a-4329-9747-5b4452f8c65b}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
