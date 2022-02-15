@@ -19,6 +19,9 @@
     <ClInclude Include="InstRope.h">
       <Filter>Core</Filter>
     </ClInclude>
+    <ClInclude Include="NativeLinks.h">
+      <Filter>Core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Default">

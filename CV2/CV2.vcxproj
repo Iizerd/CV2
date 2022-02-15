@@ -155,6 +155,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="InstRope.h" />
+    <ClInclude Include="NativeLinks.h" />
     <ClInclude Include="Windas.h" />
     <ClInclude Include="XedWrap.h" />
   </ItemGroup>

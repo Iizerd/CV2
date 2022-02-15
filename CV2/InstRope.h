@@ -5,33 +5,50 @@
 
 //https://www.youtube.com/watch?v=W8U77LUdaBM
 
-#define CODE_FLAG_IS_LABEL		(1<<0)
-#define CODE_FLAG_IS_INST		(1<<1)
-#define CODE_FLAG_GROUP_START	(1<<2)
-#define CODE_FLAG_GROUP_END		(1<<3)
-#define CODE_FLAG_IN_GROUP		(1<<4)
+#define IrGeneralFlag(Index)	(1<<Index)
+#define IrSpecificFlag(Index)	(1<<(Index + 16));
 
-typedef struct _INST_ROPE_LINK
+#define CODE_FLAG_IS_LABEL		IrGeneralFlag(0);
+#define CODE_FLAG_IS_INST		IrGeneralFlag(1);
+#define CODE_FLAG_GROUP_START	IrGeneralFlag(2);
+#define CODE_FLAG_GROUP_END		IrGeneralFlag(3);
+#define CODE_FLAG_IN_GROUP		IrGeneralFlag(4);
+
+typedef struct _INST_LINK
 {
-	_INST_ROPE_LINK*	Next;
-	_INST_ROPE_LINK*	Prev;
-	ULONG				Flags;
-}INST_LINK, *PINST_LINK;
+	_INST_LINK*		Next;
+	_INST_LINK*		Prev;
+	union
+	{
+		struct
+		{
+			union
+			{
+				struct
+				{
+					UINT16 IsLabel : 1;
+					UINT16 IsInstruction : 1;
+					UINT16 GroupStart : 1;
+					UINT16 GroupEnd : 1;
+					UINT16 InGroup : 1;
+				};
+				UINT16 GeneralFlags;
+			};
+			UINT16 SpecificFlags;
+			UINT32 LabelId;
+		};
+		UINT64 LinkData;
+	};
+}INST_LINK, * PINST_LINK; STATIC_ASSERT(sizeof(INST_LINK) == 24, "Bad INST_LINK size.");
 
 typedef struct _INST_BLOCK
 {
-	PINST_LINK			Front;
-	PINST_LINK			Back;
+	PINST_LINK		Front;
+	PINST_LINK		Back;
 }INST_BLOCK, * PINST_BLOCK;
 
-typedef struct _INST_ROPE
-{
-	INST_BLOCK			Block;
-	STDVECTOR<ULONG>	Labels;
-}INST_ROPE, *PINST_ROPE;
 
-
-PINST_LINK IrAllocateLink(ULONG LinkSize);
+PINST_LINK IrAllocateLink(UINT LinkSize);
 
 VOID _IrFreeLink(PINST_LINK Link);
 #define IrFreeLink(Inst) _IrFreeLink((PINST_LINK)Link);
@@ -59,7 +76,7 @@ VOID _IrPutLinkFront(PINST_BLOCK Block, PINST_LINK Inst);
 #define IrPutLinkFront(Block, Inst) _IrPutLinkFront((PINST_BLOCK)Block, (PINST_LINK)Inst);
 
 VOID _IrInsertLinkAfter(PINST_BLOCK ParentBlock, PINST_LINK Inst1, PINST_LINK Inst2);
-#define IrPutLinkAfter(ParentBlock, Inst1, Inst2) _IrInsertLinkAfter((PINST_BLOCK)ParentBlock, (PINST_LINK)Inst1, (PINST_LINK)Inst2);
+#define IrInsertLinkAfter(ParentBlock, Inst1, Inst2) _IrInsertLinkAfter((PINST_BLOCK)ParentBlock, (PINST_LINK)Inst1, (PINST_LINK)Inst2);
 
 VOID _IrInsertLinkBefore(PINST_BLOCK ParentBlock, PINST_LINK Inst1, PINST_LINK Inst2);
 #define IrInsertLinkBefore(ParentBlock, Inst1, Inst2) _IrInsertLinkBefore((PINST_BLOCK)ParentBlock, (PINST_LINK)Inst1, (PINST_LINK)Inst2);
@@ -71,7 +88,7 @@ VOID _IrPutBlockFront(PINST_BLOCK Block1, PINST_BLOCK Block2);
 #define IrPutBlockFront(Block1, Block2) _IrPutBlockFront((PINST_BLOCK)Block1, (PINST_BLOCK)Block2);
 
 VOID _IrInsertBlockAfter(PINST_BLOCK ParentBlock, PINST_LINK Inst, PINST_BLOCK Block);
-#define IrPutBlockAfter(ParentBlock, Inst, Block) _IrInsertBlockAfter((PINST_BLOCK)ParentBlock, (PINST_LINK)Inst, (PINST_BLOCK)Block);
+#define IrInsertBlockAfter(ParentBlock, Inst, Block) _IrInsertBlockAfter((PINST_BLOCK)ParentBlock, (PINST_LINK)Inst, (PINST_BLOCK)Block);
 
 VOID _IrInsertBlockBefore(PINST_BLOCK ParentBlock, PINST_LINK Inst, PINST_BLOCK Block);
 #define IrInsertBlockBefore(ParentBlock, Inst, Block) _IrInsertBlockBefore((PINST_BLOCK)ParentBlock, (PINST_LINK)Inst, (PINST_BLOCK)Block);

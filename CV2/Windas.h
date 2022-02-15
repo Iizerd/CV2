@@ -17,5 +17,6 @@
 #define STDVECTOR std::vector
 #define STDPAIR std::pair
 #define StdFind std::find
+#define STATIC_ASSERT static_assert
 
 #endif

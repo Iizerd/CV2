@@ -1,6 +1,6 @@
 #include "InstRope.h"
 
-PINST_LINK IrAllocateLink(ULONG LinkSize)
+PINST_LINK IrAllocateLink(UINT LinkSize)
 {
 	return (PINST_LINK)malloc(LinkSize);
 }
@@ -76,7 +76,7 @@ VOID _IrFreeBlock(PINST_BLOCK Block)
 
 VOID _IrPutLinkBack(PINST_BLOCK Block, PINST_LINK Inst)
 {
-	if (!((ULONG64)Block->Front | (ULONG64)Block->Back))
+	if (!((UINT64)Block->Front | (UINT64)Block->Back))
 	{
 		Block->Front = Block->Back = Inst;
 	}
@@ -90,7 +90,7 @@ VOID _IrPutLinkBack(PINST_BLOCK Block, PINST_LINK Inst)
 
 VOID _IrPutLinkFront(PINST_BLOCK Block, PINST_LINK Inst)
 {
-	if (!((ULONG64)Block->Front | (ULONG64)Block->Back))
+	if (!((UINT64)Block->Front | (UINT64)Block->Back))
 	{
 		Block->Front = Block->Back = Inst;
 	}
@@ -126,7 +126,7 @@ VOID _IrInsertLinkBefore(PINST_BLOCK ParentBlock, PINST_LINK Inst1, PINST_LINK I
 
 VOID _IrPutBlockBack(PINST_BLOCK Block1, PINST_BLOCK Block2)
 {
-	if (!((ULONG64)Block1->Front | (ULONG64)Block1->Back))
+	if (!((UINT64)Block1->Front | (UINT64)Block1->Back))
 	{
 		Block2->Front = Block1->Front;
 		Block2->Back = Block1->Back;
@@ -141,7 +141,7 @@ VOID _IrPutBlockBack(PINST_BLOCK Block1, PINST_BLOCK Block2)
 
 VOID _IrPutBlockFront(PINST_BLOCK Block1, PINST_BLOCK Block2)
 {
-	if (!((ULONG64)Block1->Front | (ULONG64)Block1->Back))
+	if (!((UINT64)Block1->Front | (UINT64)Block1->Back))
 	{
 		Block2->Front = Block1->Front;
 		Block2->Back = Block1->Back;
