@@ -149,6 +149,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="InstRope.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="XedWrap.cpp" />
   </ItemGroup>

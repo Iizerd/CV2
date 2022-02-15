@@ -5,6 +5,9 @@
     <ClCompile Include="XedWrap.cpp">
       <Filter>Default</Filter>
     </ClCompile>
+    <ClCompile Include="InstRope.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Windas.h">
