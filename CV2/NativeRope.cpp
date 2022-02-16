@@ -22,6 +22,43 @@ VOID NrInitForLabel(PNATIVE_LINK Link, UINT32 LabelId, PNATIVE_LINK Next, PNATIV
 	Link->Prev = Prev;
 }
 
+UINT NrCalcBlockSize(PNATIVE_BLOCK Block)
+{
+	UINT Total = 0;
+	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next;)
+	{
+		Total += T->RawInstSize;
+	}
+	return Total;
+}
+
+BOOLEAN NrCreateLabels(PNATIVE_BLOCK Block)
+{
+	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
+	{
+		if (!(T->LinkData.GeneralFlags & CODE_FLAG_IS_INST))
+			continue;
+
+		UINT OperandCount = XedDecodedInstNumOperands(&T->DecodedInst);
+		if (OperandCount != 1)
+			continue;
+
+		CONST XED_INST* Inst = XedDecodedInstInst(&T->DecodedInst);
+		CONST XED_OPERAND* Operand = XedInstOperand(Inst, 0);
+		if (!Operand)
+			continue;
+
+		XED_OPERAND_TYPE_ENUM OperandType = XedOperandType(Operand);
+		if (OperandType != XED_OPERAND_TYPE_IMM && OperandType != XED_OPERAND_TYPE_IMM_CONST)
+			continue;
+		
+		INT32 BranchDisplacement = XedDecodedInstGetBranchDisplacement(&T->DecodedInst);
+
+
+		//continue
+	}
+}
+
 BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 {
 	PUCHAR CodePointer = (PUCHAR)RawCode;
@@ -68,6 +105,27 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 
 PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 {
-	*AssembledSize = 0U;
+	if (!Block->Front || !Block->Back || !AssembledSize)
+		return NULL;
+
+	UINT TotalSize = NrCalcBlockSize(Block);
+	if (!TotalSize)
+		return NULL;
+
+	//Check for jumps needing to be promoted.
+	PUCHAR Buffer = (PUCHAR)malloc(TotalSize);
+	if (!Buffer)
+		return NULL;
+
+	PUCHAR CodePointer = Buffer;
+	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
+	{
+		if (T->LinkData.GeneralFlags & CODE_FLAG_IS_LABEL)
+			continue;
+		RtlCopyMemory(CodePointer, T->RawInstData, T->RawInstSize);
+		CodePointer += T->RawInstSize;
+	}
+	*AssembledSize = TotalSize;
+
 	return NULL;
 }

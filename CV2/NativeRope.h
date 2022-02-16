@@ -28,8 +28,14 @@ typedef struct _NATIVE_BLOCK
 #define NrFreeLink IrFreeLink
 
 VOID NrInitZero(PNATIVE_LINK Link);
+
 VOID NrInitForInst(PNATIVE_LINK Link);
+
 VOID NrInitForLabel(PNATIVE_LINK Link, UINT32 LabelId, PNATIVE_LINK Next, PNATIVE_LINK Prev);
+
+UINT NrCalcBlockSize(PNATIVE_BLOCK Block);
+
+BOOLEAN NrCreateLabels(PNATIVE_BLOCK Block);
 
 BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength);
 
