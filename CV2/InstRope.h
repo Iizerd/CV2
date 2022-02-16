@@ -6,39 +6,37 @@
 //https://www.youtube.com/watch?v=W8U77LUdaBM
 
 #define IrGeneralFlag(Index)	(1<<Index)
-#define IrSpecificFlag(Index)	(1<<(Index + 16));
+#define IrSpecificFlag(Index)	(1<<(Index + 16))
 
-#define CODE_FLAG_IS_LABEL		IrGeneralFlag(0);
-#define CODE_FLAG_IS_INST		IrGeneralFlag(1);
-#define CODE_FLAG_GROUP_START	IrGeneralFlag(2);
-#define CODE_FLAG_GROUP_END		IrGeneralFlag(3);
-#define CODE_FLAG_IN_GROUP		IrGeneralFlag(4);
+#define CODE_FLAG_IS_LABEL		IrGeneralFlag(0)
+#define CODE_FLAG_IS_INST		IrGeneralFlag(1)
+#define CODE_FLAG_GROUP_START	IrGeneralFlag(2)
+#define CODE_FLAG_GROUP_END		IrGeneralFlag(3)
+#define CODE_FLAG_IN_GROUP		IrGeneralFlag(4)
+
+typedef struct _LINK_DATA
+{
+	union
+	{
+		struct
+		{
+			UINT16 IsLabel : 1;
+			UINT16 IsInstruction : 1;
+			UINT16 GroupStart : 1;
+			UINT16 GroupEnd : 1;
+			UINT16 InGroup : 1;
+		};
+		UINT16 GeneralFlags;
+	};
+	UINT16 SpecificFlags;
+	UINT32 LabelId;
+}LINK_DATA, * PLINK_DATA;
 
 typedef struct _INST_LINK
 {
 	_INST_LINK*		Next;
 	_INST_LINK*		Prev;
-	union
-	{
-		struct
-		{
-			union
-			{
-				struct
-				{
-					UINT16 IsLabel : 1;
-					UINT16 IsInstruction : 1;
-					UINT16 GroupStart : 1;
-					UINT16 GroupEnd : 1;
-					UINT16 InGroup : 1;
-				};
-				UINT16 GeneralFlags;
-			};
-			UINT16 SpecificFlags;
-			UINT32 LabelId;
-		};
-		UINT64 LinkData;
-	};
+	LINK_DATA		LinkData;
 }INST_LINK, * PINST_LINK; STATIC_ASSERT(sizeof(INST_LINK) == 24, "Bad INST_LINK size.");
 
 typedef struct _INST_BLOCK
@@ -50,12 +48,16 @@ typedef struct _INST_BLOCK
 
 PINST_LINK IrAllocateLink(UINT LinkSize);
 
-VOID _IrFreeLink(PINST_LINK Link);
-#define IrFreeLink(Inst) _IrFreeLink((PINST_LINK)Link);
+//VOID _IrFreeLink(PINST_LINK Link);
+#define IrFreeLink(Inst) free(Inst) //_IrFreeLink((PINST_LINK)Link);
 
-typedef VOID(*FnForEachCallback)(PINST_BLOCK, PINST_LINK, PVOID);
-VOID _IrForEachLink(PINST_BLOCK Block, FnForEachCallback Callback, PVOID Context);
-#define IrForEachLink(Block, Callback, Context) _IrForEachLink((PINST_BLOCK)Block, (FnForEachCallback)Callback, (PVOID)Context);
+typedef VOID(*FnForEachCallback)(PINST_LINK);
+VOID _IrForEachLink(PINST_BLOCK Block, FnForEachCallback Callback);
+#define IrForEachLink(Block, Callback) _IrForEachLink((PINST_BLOCK)Block, (FnForEachCallback)Callback);
+
+typedef VOID(*FnForEachCallbackEx)(PINST_BLOCK, PINST_LINK, PVOID);
+VOID _IrForEachLinkEx(PINST_BLOCK Block, FnForEachCallbackEx Callback, PVOID Context);
+#define IrForEachLinkEx(Block, Callback, Context) _IrForEachLinkEx((PINST_BLOCK)Block, (FnForEachCallbackEx)Callback, (PVOID)Context);
 
 VOID _IrBuildBlock(PINST_LINK Inst, PINST_BLOCK Block);
 #define IrBuildBlock(Inst, Block) _IrBuildBlock((PINST_LINK)Inst, (PINST_BLOCK)Block);

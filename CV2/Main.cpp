@@ -1,7 +1,8 @@
 
 #include "XedWrap.h"
 #include "InstRope.h"
-#include "NativeLinks.h"
+#include "NativeRope.h"
+
 
 int main()
 {

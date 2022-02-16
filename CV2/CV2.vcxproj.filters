@@ -8,6 +8,12 @@
     <ClCompile Include="InstRope.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="NativeRope.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Logging.cpp">
+      <Filter>LoggingCompany</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Windas.h">
@@ -19,8 +25,11 @@
     <ClInclude Include="InstRope.h">
       <Filter>Core</Filter>
     </ClInclude>
-    <ClInclude Include="NativeLinks.h">
+    <ClInclude Include="NativeRope.h">
       <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Logging.h">
+      <Filter>LoggingCompany</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -29,6 +38,9 @@
     </Filter>
     <Filter Include="Core">
       <UniqueIdentifier>{9f5a2015-a20a-4329-9747-5b4452f8c65b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="LoggingCompany">
+      <UniqueIdentifier>{95f1026f-2c5d-4a8e-a7b9-82ed3be87b1a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

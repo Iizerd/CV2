@@ -5,12 +5,22 @@ PINST_LINK IrAllocateLink(UINT LinkSize)
 	return (PINST_LINK)malloc(LinkSize);
 }
 
-VOID _IrFreeLink(PINST_LINK Link)
+//VOID _IrFreeLink(PINST_LINK Link)
+//{
+//	free(Link);
+//}
+
+VOID _IrForEachLink(PINST_BLOCK Block, FnForEachCallback Callback)
 {
-	free(Link);
+	for (PINST_LINK T = Block->Front; T && T != Block->Back->Next;)
+	{
+		PINST_LINK Next = T->Next;
+		Callback(T);
+		T = Next;
+	}
 }
 
-VOID _IrForEachLink(PINST_BLOCK Block, FnForEachCallback Callback, PVOID Context)
+VOID _IrForEachLinkEx(PINST_BLOCK Block, FnForEachCallbackEx Callback, PVOID Context)
 {
 	for (PINST_LINK T = Block->Front; T && T != Block->Back->Next;)
 	{
@@ -68,10 +78,10 @@ VOID _IrBuildBlockFromBack(PINST_LINK Inst, PINST_BLOCK Block)
 
 VOID _IrFreeBlock(PINST_BLOCK Block)
 {
-	_IrForEachLink(Block, [](PINST_BLOCK, PINST_LINK Link, PVOID)
+	_IrForEachLink(Block, [](PINST_LINK Link)
 		{
-			_IrFreeLink(Link);
-		}, NULL);
+			IrFreeLink(Link);
+		});
 }
 
 VOID _IrPutLinkBack(PINST_BLOCK Block, PINST_LINK Inst)
