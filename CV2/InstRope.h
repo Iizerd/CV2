@@ -29,7 +29,7 @@ typedef struct _LINK_DATA
 		UINT16 GeneralFlags;
 	};
 	UINT16 SpecificFlags;
-	UINT32 LabelId;
+	INT32 LabelId;
 }LINK_DATA, * PLINK_DATA;
 
 typedef struct _INST_LINK

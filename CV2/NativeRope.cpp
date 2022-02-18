@@ -32,15 +32,26 @@ UINT NrCalcBlockSize(PNATIVE_BLOCK Block)
 	return Total;
 }
 
+PNATIVE_LINK NrValidateJump(PNATIVE_LINK Link, INT32 Displacement)
+{
+
+}
+
 BOOLEAN NrCreateLabels(PNATIVE_BLOCK Block)
 {
+	INT32 CurrentLabelId = 0;
 	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
 		if (!(T->LinkData.GeneralFlags & CODE_FLAG_IS_INST))
 			continue;
 
+
 		UINT OperandCount = XedDecodedInstNumOperands(&T->DecodedInst);
 		if (OperandCount != 1)
+			continue;
+
+		XED_CATEGORY_ENUM Category = XedDecodedInstGetCategory(&T->DecodedInst);
+		if (Category != XED_CATEGORY_COND_BR && Category != XED_CATEGORY_UNCOND_BR)
 			continue;
 
 		CONST XED_INST* Inst = XedDecodedInstInst(&T->DecodedInst);
@@ -53,9 +64,25 @@ BOOLEAN NrCreateLabels(PNATIVE_BLOCK Block)
 			continue;
 		
 		INT32 BranchDisplacement = XedDecodedInstGetBranchDisplacement(&T->DecodedInst);
+		PNATIVE_LINK TargetLink = NrValidateJump(T, BranchDisplacement);
+		if (!TargetLink)
+		{
+			MLog("Failed to validate jump. [%s][%d]\n", XedCategoryEnumToString(Category), BranchDisplacement);
+			return FALSE;
+		}
 
+		if (TargetLink->Prev && (TargetLink->Prev->LinkData.GeneralFlags & CODE_FLAG_IS_LABEL))
+			T->LinkData.LabelId = TargetLink->Prev->LinkData.LabelId;
+		else
+		{
+			PNATIVE_LINK LabelLink = NrAllocateLink();
+			NrInitForLabel(LabelLink, CurrentLabelId, NULL, NULL);
+			IrInsertLinkBefore(Block, TargetLink, LabelLink);
+			T->LinkData.LabelId = CurrentLabelId;
+			++CurrentLabelId;
+		}
 
-		//continue
+		T->LinkData.SpecificFlags |= CODE_FLAG_IS_REL_JUMP;
 	}
 }
 

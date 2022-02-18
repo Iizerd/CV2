@@ -6,6 +6,7 @@
 
 #define CODE_FLAG_DOES_READ_FLAGS IrSpecificFlag(0);
 #define CODE_FLAG_DOES_WRITE_FLAGS IrSpecificFlag(1);
+#define CODE_FLAG_IS_REL_JUMP IrSpecificFlag(2);
 
 typedef struct _NATIVE_LINK
 {
