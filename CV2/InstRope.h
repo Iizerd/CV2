@@ -13,6 +13,7 @@
 #define CODE_FLAG_GROUP_START	IrGeneralFlag(2)
 #define CODE_FLAG_GROUP_END		IrGeneralFlag(3)
 #define CODE_FLAG_IN_GROUP		IrGeneralFlag(4)
+#define CODE_FLAG_USES_LABEL	IrGeneralFlag(5)
 
 typedef struct _LINK_DATA
 {
@@ -20,17 +21,16 @@ typedef struct _LINK_DATA
 	{
 		struct
 		{
-			UINT16 IsLabel : 1;
-			UINT16 IsInstruction : 1;
-			UINT16 GroupStart : 1;
-			UINT16 GroupEnd : 1;
-			UINT16 InGroup : 1;
+			UINT32 IsLabel : 1;
+			UINT32 IsInstruction : 1;
+			UINT32 GroupStart : 1;
+			UINT32 GroupEnd : 1;
+			UINT32 InGroup : 1;
 		};
-		UINT16 GeneralFlags;
+		UINT32 Flags;
 	};
-	UINT16 SpecificFlags;
 	INT32 LabelId;
-}LINK_DATA, * PLINK_DATA;
+}LINK_DATA, * PLINK_DATA; STATIC_ASSERT(sizeof(LINK_DATA) == 8, "Bad LINK_DATA size.");
 
 typedef struct _INST_LINK
 {
@@ -45,8 +45,8 @@ typedef struct _INST_BLOCK
 	PINST_LINK		Back;
 }INST_BLOCK, * PINST_BLOCK;
 
-
-PINST_LINK IrAllocateLink(UINT LinkSize);
+//PINST_LINK IrAllocateLink(UINT LinkSize);
+#define IrAllocateLink(LinkSize) (PINST_LINK)malloc(LinkSize)
 
 //VOID _IrFreeLink(PINST_LINK Link);
 #define IrFreeLink(Inst) free(Inst) //_IrFreeLink((PINST_LINK)Link);
@@ -101,6 +101,12 @@ VOID _IrReplaceBlock(PINST_BLOCK ParentBlock, PINST_LINK Start, PINST_LINK End, 
 VOID _IrReplaceBlock2(PINST_BLOCK ParentBlock, PINST_BLOCK Block1, PINST_BLOCK Block2);
 #define IrReplaceBlock2(ParentBlock, Block1, Block2) _IrReplaceBlock2((PINST_BLOCK)ParentBlock, (PINST_BLOCK)Block1, (PINST_BLOCK)Block2);
 
+//Rebases a block's labels to start at a certain number.
+VOID _IrRebaseLabels(PINST_BLOCK Block, INT32 LabelBase);
+#define IrRebaseLabels(Block, LabelBase) _IrRebaseLabels((PINST_BLOCK)Block, LabelBase)
 
+//Assures that there are no conflicting labels in the two blocks.
+VOID _IrPrepForMerge(PINST_BLOCK Block1, PINST_BLOCK Block2);
+#define IrPrepForMerge(Block1, Block2) _IrPrepForMerge((PINST_BLOCK)Block1, (PINST_BLOCK)Block2)
 
 #endif

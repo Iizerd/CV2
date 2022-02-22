@@ -14,6 +14,12 @@
     <ClCompile Include="Logging.cpp">
       <Filter>LoggingCompany</Filter>
     </ClCompile>
+    <ClCompile Include="VirtualInst.cpp">
+      <Filter>VirtualMachine</Filter>
+    </ClCompile>
+    <ClCompile Include="Obfuscator.cpp">
+      <Filter>Obfuscator</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Windas.h">
@@ -31,6 +37,15 @@
     <ClInclude Include="Logging.h">
       <Filter>LoggingCompany</Filter>
     </ClInclude>
+    <ClInclude Include="VirtualInst.h">
+      <Filter>VirtualMachine</Filter>
+    </ClInclude>
+    <ClInclude Include="VmStructure.h">
+      <Filter>VirtualMachine</Filter>
+    </ClInclude>
+    <ClInclude Include="Obfuscator.h">
+      <Filter>Obfuscator</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Default">
@@ -41,6 +56,12 @@
     </Filter>
     <Filter Include="LoggingCompany">
       <UniqueIdentifier>{95f1026f-2c5d-4a8e-a7b9-82ed3be87b1a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VirtualMachine">
+      <UniqueIdentifier>{2c546172-5502-4f66-a1d4-8d8caefcedde}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Obfuscator">
+      <UniqueIdentifier>{10153015-ba51-4e34-8a9a-30f6795352b9}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

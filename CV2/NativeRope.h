@@ -4,9 +4,9 @@
 #include "InstRope.h"
 #include "XedWrap.h"
 
-#define CODE_FLAG_DOES_READ_FLAGS IrSpecificFlag(0);
-#define CODE_FLAG_DOES_WRITE_FLAGS IrSpecificFlag(1);
-#define CODE_FLAG_IS_REL_JUMP IrSpecificFlag(2);
+#define CODE_FLAG_DOES_READ_FLAGS IrSpecificFlag(0)
+#define CODE_FLAG_DOES_WRITE_FLAGS IrSpecificFlag(1)
+#define CODE_FLAG_IS_REL_JUMP IrSpecificFlag(2)
 
 typedef struct _NATIVE_LINK
 {
@@ -34,13 +34,25 @@ VOID NrInitForInst(PNATIVE_LINK Link);
 
 VOID NrInitForLabel(PNATIVE_LINK Link, UINT32 LabelId, PNATIVE_LINK Next, PNATIVE_LINK Prev);
 
+BOOLEAN NrDeepCopyLink(PNATIVE_LINK Dest, PNATIVE_LINK Source);
+
+BOOLEAN NrDeepCopyBlock(PNATIVE_BLOCK Dest, PNATIVE_LINK Start, PNATIVE_LINK End);
+
+BOOLEAN NrDeepCopyBlock2(PNATIVE_BLOCK Dest, PNATIVE_BLOCK Source);
+
 UINT NrCalcBlockSize(PNATIVE_BLOCK Block);
+
+PNATIVE_LINK NcValidateJump(PNATIVE_LINK Jmp, INT32 Delta);
 
 BOOLEAN NrCreateLabels(PNATIVE_BLOCK Block);
 
 BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength);
 
 PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize);
+
+VOID NrDebugPrintIClass(PNATIVE_BLOCK Block);
+
+BOOLEAN NrAreFlagsClobbered(PNATIVE_LINK Start, PNATIVE_LINK End);
 
 
 #endif

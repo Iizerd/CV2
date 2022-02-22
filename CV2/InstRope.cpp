@@ -1,9 +1,9 @@
 #include "InstRope.h"
 
-PINST_LINK IrAllocateLink(UINT LinkSize)
-{
-	return (PINST_LINK)malloc(LinkSize);
-}
+//PINST_LINK IrAllocateLink(UINT LinkSize)
+//{
+//	return (PINST_LINK)malloc(LinkSize);
+//}
 
 //VOID _IrFreeLink(PINST_LINK Link)
 //{
@@ -223,4 +223,53 @@ VOID _IrReplaceBlock2(PINST_BLOCK ParentBlock, PINST_BLOCK Block1, PINST_BLOCK B
 	Block2->Back->Next = Block1->Back->Next;
 
 	_IrFreeBlock(Block1);
+}
+
+VOID _IrRebaseLabels(PINST_BLOCK Block, INT32 LabelBase)
+{
+	BOOL FoundFirstLabel = FALSE;
+	INT32 LowestLabel = 0;
+	for (PINST_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
+	{
+		if (T->LinkData.Flags & CODE_FLAG_IS_LABEL)
+		{
+			if (FALSE == FoundFirstLabel)
+			{
+				LowestLabel = T->LinkData.LabelId;
+				FoundFirstLabel = TRUE;
+			}
+			else if (T->LinkData.LabelId < LowestLabel)
+				LowestLabel = T->LinkData.LabelId;
+		}
+	}
+	if (FoundFirstLabel)
+	{
+		INT32 LabelDelta = LabelBase - LowestLabel;
+		for (PINST_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
+		{
+			if (T->LinkData.Flags & (CODE_FLAG_IS_LABEL | CODE_FLAG_USES_LABEL))
+				T->LinkData.LabelId += LabelDelta;
+		}
+	}
+}
+
+VOID _IrPrepForMerge(PINST_BLOCK Block1, PINST_BLOCK Block2)
+{
+	BOOL FoundFirstLabel = FALSE;
+	INT32 HighestLabel = 0;
+	for (PINST_LINK T = Block1->Front; T && T != Block1->Back->Next; T = T->Next)
+	{
+		if (T->LinkData.Flags & CODE_FLAG_IS_LABEL)
+		{
+			if (FALSE == FoundFirstLabel)
+			{
+				HighestLabel = T->LinkData.LabelId;
+				FoundFirstLabel = TRUE;
+			}
+			else if (T->LinkData.LabelId > HighestLabel)
+				HighestLabel = T->LinkData.LabelId;
+		}
+	}
+	if (FoundFirstLabel)
+		_IrRebaseLabels(Block2, HighestLabel + 1);
 }
