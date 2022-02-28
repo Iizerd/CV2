@@ -6,7 +6,7 @@ PVOID MemoryOperandHandlers[VM_OPHANDLER_COUNT * VM_IREG_COUNT * VM_OPSIZE_COUNT
 PVOID RegisterOperandHandlers[VM_OPHANDLER_COUNT * VM_IREG_COUNT * VM_OPSIZE_COUNT] = { NULL };
 PVOID ImmediateOperandHandlers[VM_IREG_COUNT * VM_OPSIZE_COUNT] = { NULL };
 
-PVOID* ViGetNativeHandler(UINT IClass, UINT OpSize1 = 0, UINT OpSize2 = 0)
+PVOID* ViGetNativeHandler(UINT IClass, UINT OpSize1, UINT OpSize2)
 {
 	return &NativeHandlers[
 		(IClass * VM_OPSIZE_COUNT * VM_OPSIZE_COUNT) + 

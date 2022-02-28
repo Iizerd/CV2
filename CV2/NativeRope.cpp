@@ -22,6 +22,23 @@ VOID NrInitForLabel(PNATIVE_LINK Link, UINT32 LabelId, PNATIVE_LINK Next, PNATIV
 	Link->Prev = Prev;
 }
 
+VOID NrFreeBlock(PNATIVE_BLOCK Block)
+{
+	NrFreeBlock2(Block->Front, Block->Back);
+}
+
+VOID NrFreeBlock2(PNATIVE_LINK Start, PNATIVE_LINK End)
+{
+	for (PNATIVE_LINK T = Start; T && T != End->Next;)
+	{
+		PNATIVE_LINK Next = T->Next;
+		if (T->RawInstData)
+			free(T->RawInstData);
+		free(T);
+		T = Next;
+	}
+}
+
 BOOLEAN NrDeepCopyLink(PNATIVE_LINK Dest, PNATIVE_LINK Source)
 {
 	if (Source->LinkData.Flags & CODE_FLAG_IS_INST)
@@ -57,7 +74,7 @@ BOOLEAN NrDeepCopyBlock(PNATIVE_BLOCK Dest, PNATIVE_LINK Start, PNATIVE_LINK End
 		{
 			MLog("Failed to create deep copy of link.\n");
 			NrFreeLink(Link);
-			IrFreeBlock(Dest);
+			NrFreeBlock(Dest);
 			return FALSE;
 		}
 		IrPutLinkBack(Dest, Link);
@@ -177,7 +194,7 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 		PNATIVE_LINK Link = NrAllocateLink();
 		if (!Link)
 		{
-			IrFreeBlock(Block);
+			NrFreeBlock(Block);
 			MLog("Could not allocate new link in NrDissasemble\n");
 			return FALSE;
 		}
@@ -189,7 +206,7 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 		{
 			MLog("XedDecode failed in NrDissasemble. Error: %s\n", XedErrorEnumToString(XedError));
 			NrFreeLink(Link);
-			IrFreeBlock(Block);
+			NrFreeBlock(Block);
 			return FALSE;
 		}
 		
@@ -199,7 +216,7 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 		{
 			MLog("Could not allocate space for RawInstData in NrDissassemble\n");
 			NrFreeLink(Link);
-			IrFreeBlock(Block);
+			NrFreeBlock(Block);
 			return FALSE;
 		}
 		RtlCopyMemory(RawInstData, CodePointer, RawInstSize);
@@ -228,7 +245,6 @@ PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 	if (!TotalSize)
 		return NULL;
 
-	//Check for jumps needing to be promoted.
 	PUCHAR Buffer = (PUCHAR)malloc(TotalSize);
 	if (!Buffer)
 		return NULL;
@@ -286,8 +302,14 @@ BOOLEAN NrAreFlagsClobbered(PNATIVE_LINK Start, PNATIVE_LINK End)
 			continue;
 
 		CONST XED_SIMPLE_FLAG* InstFlag = XedDecodedInstGetRflagsInfo(&Start->DecodedInst);
+		CONST XED_FLAG_SET* IRead = XedSimpleFlagGetReadFlagSet(InstFlag);
 
-		//finish this
-		//see about implementing the LinkData->Flags to see if flags are written/read
+		if (IRead->flat & Ledger.flat)
+			return FALSE;
+
+		CONST XED_FLAG_SET* IWritten = XedSimpleFlagGetWrittenFlagSet(InstFlag);
+		CONST XED_FLAG_SET* IUndefined = XedSimpleFlagGetUndefinedFlagSet(InstFlag);
+		Ledger.flat &= ~(IWritten->flat | IUndefined->flat);
 	}
+	return TRUE;
 }

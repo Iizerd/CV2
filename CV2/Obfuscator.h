@@ -1,6 +1,8 @@
 #ifndef __OBFUSCATOR_H
 #define __OBFUSCATOR_H
 
+#include "NativeRope.h"
+
 /*
 * Ideas:
 *		Ret instruction remover:
@@ -22,10 +24,14 @@
 * 
 *		Opaque Branches:
 *			- Duh
-* 
-* 		
-*				
+* 	
 */
+
+
+
+BOOLEAN ObfGenerateRetReplacement(PNATIVE_BLOCK Block, UINT Junk);
+
+BOOLEAN ObfGenerateRelJumpReplacement(PNATIVE_BLOCK Block, INT32 Displacement);
 
 
 

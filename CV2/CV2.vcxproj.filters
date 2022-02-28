@@ -20,6 +20,9 @@
     <ClCompile Include="Obfuscator.cpp">
       <Filter>Obfuscator</Filter>
     </ClCompile>
+    <ClCompile Include="FunctionBlock.cpp">
+      <Filter>Obfuscator</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Windas.h">
@@ -44,6 +47,9 @@
       <Filter>VirtualMachine</Filter>
     </ClInclude>
     <ClInclude Include="Obfuscator.h">
+      <Filter>Obfuscator</Filter>
+    </ClInclude>
+    <ClInclude Include="FunctionBlock.h">
       <Filter>Obfuscator</Filter>
     </ClInclude>
   </ItemGroup>

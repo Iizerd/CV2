@@ -10,10 +10,11 @@
 
 #define CODE_FLAG_IS_LABEL		IrGeneralFlag(0)
 #define CODE_FLAG_IS_INST		IrGeneralFlag(1)
-#define CODE_FLAG_GROUP_START	IrGeneralFlag(2)
-#define CODE_FLAG_GROUP_END		IrGeneralFlag(3)
-#define CODE_FLAG_IN_GROUP		IrGeneralFlag(4)
-#define CODE_FLAG_USES_LABEL	IrGeneralFlag(5)
+#define CODE_FLAG_IS_RAW_DATA	IrGeneralFlag(2)
+#define CODE_FLAG_GROUP_START	IrGeneralFlag(3)
+#define CODE_FLAG_GROUP_END		IrGeneralFlag(4)
+#define CODE_FLAG_IN_GROUP		IrGeneralFlag(5)
+#define CODE_FLAG_USES_LABEL	IrGeneralFlag(6)
 
 typedef struct _LINK_DATA
 {
@@ -68,8 +69,8 @@ VOID _IrBuildBlockFromFront(PINST_LINK Inst, PINST_BLOCK Block);
 VOID _IrBuildBlockFromBack(PINST_LINK Inst, PINST_BLOCK Block);
 #define IrBuildBlockFromBack(Inst, Block) _IrBuildBlockFromBack((PINST_LINK)Inst, (PINST_BLOCK)Block);
 
-VOID _IrFreeBlock(PINST_BLOCK Block);
-#define IrFreeBlock(Block) _IrFreeBlock((PINST_BLOCK)Block);
+//VOID _IrFreeBlock(PINST_BLOCK Block);
+//#define IrFreeBlock(Block) _IrFreeBlock((PINST_BLOCK)Block);
 
 VOID _IrPutLinkBack(PINST_BLOCK Block, PINST_LINK Inst);
 #define IrPutLinkBack(Block, Inst) _IrPutLinkBack((PINST_BLOCK)Block, (PINST_LINK)Inst);

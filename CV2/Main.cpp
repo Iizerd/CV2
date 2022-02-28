@@ -2,9 +2,9 @@
 #include "XedWrap.h"
 #include "InstRope.h"
 #include "NativeRope.h"
+#include "FunctionBlock.h"
 
-
-UCHAR TestArray[] = { 0x48, 0x89, 0xC0, 0x48, 0x31, 0xC0, 0xEB, 0x03, 0x48, 0x89, 0xC0, 0x48, 0x31, 0xC0 };
+UCHAR TestArray[] = { 0x48, 0x09, 0xC0, 0x48, 0x09, 0xC0, 0x75, 0x06, 0x48, 0x21, 0xDB, 0x48, 0x21, 0xDB, 0x48, 0x31, 0xC9, 0x48, 0x31, 0xC9 };
 
 int main()
 {
@@ -13,7 +13,10 @@ int main()
 	NATIVE_BLOCK Block;
 	Block.Back = Block.Front = NULL;
 	NrDissasemble(&Block, TestArray, sizeof(TestArray));
-	NrDebugPrintIClass(&Block);
+	//NrDebugPrintIClass(&Block);
+	PFUNCTION_BLOCK FbTree = FbCreateTree(&Block);
+	FbPrintTakenPath(FbTree);
+	FbFreeTree(FbTree);
 	system("pause");
 
 	return 1;

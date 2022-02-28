@@ -4,9 +4,7 @@
 #include "InstRope.h"
 #include "XedWrap.h"
 
-#define CODE_FLAG_DOES_READ_FLAGS IrSpecificFlag(0)
-#define CODE_FLAG_DOES_WRITE_FLAGS IrSpecificFlag(1)
-#define CODE_FLAG_IS_REL_JUMP IrSpecificFlag(2)
+#define CODE_FLAG_IS_REL_JUMP IrSpecificFlag(0)
 
 typedef struct _NATIVE_LINK
 {
@@ -27,6 +25,10 @@ typedef struct _NATIVE_BLOCK
 
 #define NrAllocateLink() (PNATIVE_LINK)IrAllocateLink(sizeof(NATIVE_LINK));
 #define NrFreeLink IrFreeLink
+
+VOID NrFreeBlock(PNATIVE_BLOCK Block);
+
+VOID NrFreeBlock2(PNATIVE_LINK Start, PNATIVE_LINK End);
 
 VOID NrInitZero(PNATIVE_LINK Link);
 

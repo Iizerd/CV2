@@ -16,7 +16,7 @@ PUCHAR XedEncodeInstructions(XED_ENCODER_INSTRUCTION* InstList, UINT InstCount, 
 	XED_ERROR_ENUM Err = XED_ERROR_NONE;
 
 	*OutSize = 0;
-	PUCHAR EncodeBuffer = new UCHAR[InstCount * 15];
+	PUCHAR EncodeBuffer = (PUCHAR)malloc(InstCount * 15);
 	if (!EncodeBuffer)
 		return NULL;
 

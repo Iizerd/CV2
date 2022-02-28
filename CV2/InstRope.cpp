@@ -76,13 +76,13 @@ VOID _IrBuildBlockFromBack(PINST_LINK Inst, PINST_BLOCK Block)
 	}
 }
 
-VOID _IrFreeBlock(PINST_BLOCK Block)
-{
-	_IrForEachLink(Block, [](PINST_LINK Link)
-		{
-			IrFreeLink(Link);
-		});
-}
+//VOID _IrFreeBlock(PINST_BLOCK Block)
+//{
+//	_IrForEachLink(Block, [](PINST_LINK Link)
+//		{
+//			IrFreeLink(Link);
+//		});
+//}
 
 VOID _IrPutLinkBack(PINST_BLOCK Block, PINST_LINK Inst)
 {
@@ -198,31 +198,26 @@ VOID _IrInsertBlockBefore(PINST_BLOCK ParentBlock, PINST_LINK Inst, PINST_BLOCK 
 
 VOID _IrReplaceBlock(PINST_BLOCK ParentBlock, PINST_LINK Start, PINST_LINK End, PINST_BLOCK Block)
 {
-	INST_BLOCK Block1;
-	Block1.Front = Start;
-	Block1.Back = End;
-	_IrReplaceBlock2(ParentBlock, &Block1, Block);
+	if (ParentBlock)
+	{
+		if (ParentBlock->Front == Start)
+			ParentBlock->Front = Block->Front;
+		if (ParentBlock->Back == End)
+			ParentBlock->Back = Block->Back;
+	}
+
+	if (Start->Prev)
+		Start->Prev->Next = Block->Front;
+	Block->Front->Prev = Start->Prev;
+
+	if (End->Next)
+		End->Next->Prev = Block->Back;
+	Block->Back->Next = End->Next;
 }
 
 VOID _IrReplaceBlock2(PINST_BLOCK ParentBlock, PINST_BLOCK Block1, PINST_BLOCK Block2)
 {
-	if (ParentBlock)
-	{
-		if (ParentBlock->Front == Block1->Front)
-			ParentBlock->Front = Block2->Front;
-		if (ParentBlock->Back == Block1->Back)
-			ParentBlock->Back = Block2->Back;
-	}
-
-	if (Block1->Front->Prev)
-		Block1->Front->Prev->Next = Block2->Front;
-	Block2->Front->Prev = Block1->Front->Prev;
-
-	if (Block1->Back->Next)
-		Block1->Back->Next->Prev = Block2->Back;
-	Block2->Back->Next = Block1->Back->Next;
-
-	_IrFreeBlock(Block1);
+	return _IrReplaceBlock(ParentBlock, Block1->Front, Block1->Back, Block2);
 }
 
 VOID _IrRebaseLabels(PINST_BLOCK Block, INT32 LabelBase)
