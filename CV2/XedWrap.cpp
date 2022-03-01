@@ -1,4 +1,5 @@
 #include "XedWrap.h"
+#include "Logging.h"
 
 VOID XedGlobalInit()
 {
@@ -16,7 +17,7 @@ PUCHAR XedEncodeInstructions(XED_ENCODER_INSTRUCTION* InstList, UINT InstCount, 
 	XED_ERROR_ENUM Err = XED_ERROR_NONE;
 
 	*OutSize = 0;
-	PUCHAR EncodeBuffer = (PUCHAR)malloc(InstCount * 15);
+	PUCHAR EncodeBuffer = (PUCHAR)Allocate(InstCount * 15);
 	if (!EncodeBuffer)
 		return NULL;
 
@@ -25,17 +26,18 @@ PUCHAR XedEncodeInstructions(XED_ENCODER_INSTRUCTION* InstList, UINT InstCount, 
 		XedEncoderRequestZeroSetMode(&EncoderRequest, &XedGlobalMachineState);
 		if (!XedConvertToEncoderRequest(&EncoderRequest, &InstList[i]) || XED_ERROR_NONE != (Err = XedEncode(&EncoderRequest, &EncodeBuffer[TotalSize], 15, &ReturnedSize)))
 		{
-			printf("Error encoding instruction: %u, %s\n", i, XedErrorEnumToString(Err));
-			delete[] EncodeBuffer;
+			MLog("Error encoding instruction: %u, %s\n", i, XedErrorEnumToString(Err));
+			Free(EncodeBuffer);
 			return NULL;
 		}
 		TotalSize += ReturnedSize;
 	}
 
-	PUCHAR RetBuffer = new UCHAR[TotalSize];
+	PUCHAR RetBuffer = (PUCHAR)Allocate(TotalSize);
 	if (!RetBuffer)
 	{
-		delete[] EncodeBuffer;
+		MLog("Could not allocate memory for return buffer in XedEncodeInstructions");
+		Free(EncodeBuffer);
 		return NULL;
 	}
 

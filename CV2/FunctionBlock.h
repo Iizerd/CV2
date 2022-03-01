@@ -16,7 +16,11 @@ typedef struct _FUNCTION_BLOCK
 
 
 PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK Block);
-VOID FbPrintTakenPath(PFUNCTION_BLOCK Start);
-VOID FbPrintNotTakenPath(PFUNCTION_BLOCK Start);
-VOID FbFreeTree(PFUNCTION_BLOCK Start);
+
+VOID FbPrintTakenPath(PFUNCTION_BLOCK TreeHead);
+
+VOID FbPrintNotTakenPath(PFUNCTION_BLOCK TreeHead);
+
+VOID FbFreeTree(PFUNCTION_BLOCK TreeHead);
+
 #endif

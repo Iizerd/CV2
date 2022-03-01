@@ -13,6 +13,12 @@
 #include <cmath>
 #include <mutex>
 
+#define Allocate malloc
+#define AllocateS(StructType) (StructType*)calloc(1, sizeof(StructType))
+#define Free free
+
+
+
 #define INLINE inline
 #define STDSTRING std::string
 #define STDVECTOR std::vector

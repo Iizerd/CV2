@@ -46,12 +46,6 @@ typedef struct _INST_BLOCK
 	PINST_LINK		Back;
 }INST_BLOCK, * PINST_BLOCK;
 
-//PINST_LINK IrAllocateLink(UINT LinkSize);
-#define IrAllocateLink(LinkSize) (PINST_LINK)malloc(LinkSize)
-
-//VOID _IrFreeLink(PINST_LINK Link);
-#define IrFreeLink(Inst) free(Inst) //_IrFreeLink((PINST_LINK)Link);
-
 typedef VOID(*FnForEachCallback)(PINST_LINK);
 VOID _IrForEachLink(PINST_BLOCK Block, FnForEachCallback Callback);
 #define IrForEachLink(Block, Callback) _IrForEachLink((PINST_BLOCK)Block, (FnForEachCallback)Callback);
@@ -59,6 +53,9 @@ VOID _IrForEachLink(PINST_BLOCK Block, FnForEachCallback Callback);
 typedef VOID(*FnForEachCallbackEx)(PINST_BLOCK, PINST_LINK, PVOID);
 VOID _IrForEachLinkEx(PINST_BLOCK Block, FnForEachCallbackEx Callback, PVOID Context);
 #define IrForEachLinkEx(Block, Callback, Context) _IrForEachLinkEx((PINST_BLOCK)Block, (FnForEachCallbackEx)Callback, (PVOID)Context);
+
+UINT _IrCountLinks(PINST_BLOCK Block);
+#define IrCountLinks(Block) _IrCountLinks((PINST_BLOCK)Block);
 
 VOID _IrBuildBlock(PINST_LINK Inst, PINST_BLOCK Block);
 #define IrBuildBlock(Inst, Block) _IrBuildBlock((PINST_LINK)Inst, (PINST_BLOCK)Block);

@@ -1,15 +1,5 @@
 #include "InstRope.h"
 
-//PINST_LINK IrAllocateLink(UINT LinkSize)
-//{
-//	return (PINST_LINK)malloc(LinkSize);
-//}
-
-//VOID _IrFreeLink(PINST_LINK Link)
-//{
-//	free(Link);
-//}
-
 VOID _IrForEachLink(PINST_BLOCK Block, FnForEachCallback Callback)
 {
 	for (PINST_LINK T = Block->Front; T && T != Block->Back->Next;)
@@ -30,9 +20,17 @@ VOID _IrForEachLinkEx(PINST_BLOCK Block, FnForEachCallbackEx Callback, PVOID Con
 	}
 }
 
+UINT _IrCountLinks(PINST_BLOCK Block)
+{
+	UINT Count = 0;
+	for (PINST_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
+		Count++;
+	return Count;
+}
+
 VOID _IrBuildBlock(PINST_LINK Inst, PINST_BLOCK Block)
 {
-	for (PINST_LINK T = Inst; T != NULL; T = T->Prev)
+	for (PINST_LINK T = Inst; T; T = T->Prev)
 	{
 		if (!T->Prev)
 		{
@@ -40,7 +38,7 @@ VOID _IrBuildBlock(PINST_LINK Inst, PINST_BLOCK Block)
 			break;
 		}
 	}
-	for (PINST_LINK T = Inst; T != NULL; T = T->Next)
+	for (PINST_LINK T = Inst; T; T = T->Next)
 	{
 		if (!T->Next)
 		{
@@ -222,7 +220,7 @@ VOID _IrReplaceBlock2(PINST_BLOCK ParentBlock, PINST_BLOCK Block1, PINST_BLOCK B
 
 VOID _IrRebaseLabels(PINST_BLOCK Block, INT32 LabelBase)
 {
-	BOOL FoundFirstLabel = FALSE;
+	BOOLEAN FoundFirstLabel = FALSE;
 	INT32 LowestLabel = 0;
 	for (PINST_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
@@ -250,7 +248,7 @@ VOID _IrRebaseLabels(PINST_BLOCK Block, INT32 LabelBase)
 
 VOID _IrPrepForMerge(PINST_BLOCK Block1, PINST_BLOCK Block2)
 {
-	BOOL FoundFirstLabel = FALSE;
+	BOOLEAN FoundFirstLabel = FALSE;
 	INT32 HighestLabel = 0;
 	for (PINST_LINK T = Block1->Front; T && T != Block1->Back->Next; T = T->Next)
 	{

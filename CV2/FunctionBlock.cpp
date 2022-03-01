@@ -1,12 +1,6 @@
 #include "FunctionBlock.h"
 #include "Logging.h"
 
-/*
-* Function Block:
-*	- MUST start with label.		unless start of function.
-*	- MUST end with relative jump.  unless end of function.
-*/
-
 PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 {
 	STDVECTOR<PFUNCTION_BLOCK> FunctionBlocks = { };
@@ -14,29 +8,29 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 	if (!CodeBlock->Front || !CodeBlock->Back)
 		return NULL;
 
-	PFUNCTION_BLOCK CurrentBlock = (PFUNCTION_BLOCK)malloc(sizeof(FUNCTION_BLOCK));
+	PFUNCTION_BLOCK CurrentBlock = AllocateS(FUNCTION_BLOCK);
 	if (!CurrentBlock)
 	{
 		MLog("Could not allocate memory for first function block.\n");
 		return NULL;
 	}
-	RtlZeroMemory(CurrentBlock, sizeof(FUNCTION_BLOCK));
+	//RtlZeroMemory(CurrentBlock, sizeof(FUNCTION_BLOCK));
 	CurrentBlock->Block.Front = CodeBlock->Front;
 	
 	for (PNATIVE_LINK T = CodeBlock->Front; T && T != CodeBlock->Back->Next; T = T->Next)
 	{
 		if (T->LinkData.Flags & (CODE_FLAG_IS_LABEL | CODE_FLAG_IS_REL_JUMP))
 		{
-			PFUNCTION_BLOCK NextBlock = (PFUNCTION_BLOCK)malloc(sizeof(FUNCTION_BLOCK));
+			PFUNCTION_BLOCK NextBlock = AllocateS(FUNCTION_BLOCK);
 			if (!NextBlock)
 			{
 				MLog("Could not allocate memory for next function block.\n");
 				for (PFUNCTION_BLOCK Block : FunctionBlocks)
-					free(Block);
-				free(CurrentBlock);
+					Free(Block);
+				Free(CurrentBlock);
 				return NULL;
 			}
-			RtlZeroMemory(NextBlock, sizeof(FUNCTION_BLOCK));
+			//RtlZeroMemory(NextBlock, sizeof(FUNCTION_BLOCK));
 
 			if (T->LinkData.Flags & CODE_FLAG_IS_REL_JUMP)
 			{
@@ -65,6 +59,7 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 	if (FunctionBlocks.size() == 0)
 		return CurrentBlock;
 
+	//Otherwise, fix up conditional jumps by searching for where they jump to!
 	for (UINT i = 0; i < FunctionBlocks.size(); i++)
 	{
 		if (FunctionBlocks[i]->Conditional)
@@ -72,7 +67,6 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 			INT32 TargetLabel = FunctionBlocks[i]->Block.Back->LinkData.LabelId;
 			for (INT j = i + 1; j < FunctionBlocks.size(); j++)
 			{
-				//Search forward.
 				if ((FunctionBlocks[j]->Block.Front->LinkData.Flags & CODE_FLAG_IS_LABEL) && 
 					TargetLabel == FunctionBlocks[j]->Block.Front->LinkData.LabelId)
 				{
@@ -83,7 +77,6 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 			}
 			for (INT j = i - 1; j >= 0; j--)
 			{
-				//Search backwards.
 				if ((FunctionBlocks[j]->Block.Front->LinkData.Flags & CODE_FLAG_IS_LABEL) &&
 					TargetLabel == FunctionBlocks[j]->Block.Front->LinkData.LabelId)
 				{
@@ -93,7 +86,7 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 			}
 			
 			for (PFUNCTION_BLOCK Block : FunctionBlocks)
-				free(Block);
+				Free(Block);
 			MLog("Failed to find Taken branch of relative jump.\n");
 			return NULL;
 		}
@@ -111,32 +104,32 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 	return FunctionBlocks[0];
 }
 
-VOID FbPrintTakenPath(PFUNCTION_BLOCK Start)
+VOID FbPrintTakenPath(PFUNCTION_BLOCK TreeHead)
 {
-	while (Start)
+	while (TreeHead)
 	{
-		NrDebugPrintIClass(&Start->Block);
-		if (Start->Conditional)
-			Start = Start->Taken;
+		NrDebugPrintIClass(&TreeHead->Block);
+		if (TreeHead->Conditional)
+			TreeHead = TreeHead->Taken;
 		else
-			Start = Start->NotTaken;
+			TreeHead = TreeHead->NotTaken;
 		printf("\n");
 	}
 }
-VOID FbPrintNotTakenPath(PFUNCTION_BLOCK Start)
+VOID FbPrintNotTakenPath(PFUNCTION_BLOCK TreeHead)
 {
-	while (Start)
+	while (TreeHead)
 	{
-		NrDebugPrintIClass(&Start->Block);
-		Start = Start->NotTaken;
+		NrDebugPrintIClass(&TreeHead->Block);
+		TreeHead = TreeHead->NotTaken;
 		printf("\n");
 	}
 }
-VOID FbFreeTree(PFUNCTION_BLOCK Start)
+VOID FbFreeTree(PFUNCTION_BLOCK TreeHead)
 {
-	if (Start)
+	if (TreeHead)
 	{
-		FbFreeTree(Start->NotTaken);
-		free(Start);
+		FbFreeTree(TreeHead->NotTaken);
+		Free(TreeHead);
 	}
 }

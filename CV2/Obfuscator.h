@@ -29,10 +29,6 @@
 
 
 
-BOOLEAN ObfGenerateRetReplacement(PNATIVE_BLOCK Block, UINT Junk);
-
-BOOLEAN ObfGenerateRelJumpReplacement(PNATIVE_BLOCK Block, INT32 Displacement);
-
 
 
 #endif

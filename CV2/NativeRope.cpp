@@ -1,7 +1,7 @@
 #include "NativeRope.h"
 #include "Logging.h"
 
-VOID NrInitZero(PNATIVE_LINK Link)
+VOID NrZeroLink(PNATIVE_LINK Link)
 {
 	RtlSecureZeroMemory(Link, sizeof(NATIVE_LINK));
 }
@@ -22,6 +22,38 @@ VOID NrInitForLabel(PNATIVE_LINK Link, UINT32 LabelId, PNATIVE_LINK Next, PNATIV
 	Link->Prev = Prev;
 }
 
+BOOLEAN NrAddAssemblyOperation(PNATIVE_LINK Link, FnAssemblyOperation Operation, PVOID Context, BOOLEAN Front)
+{
+	PASSEMBLY_OPERATION OpStruct = AllocateS(ASSEMBLY_OPERATION);
+	if (!OpStruct)
+	{
+		MLog("Failed to allocate memory for Operation Structure.\n");
+		return FALSE;
+	}
+	OpStruct->Context = Context;
+	OpStruct->Operation = Operation;
+	
+	if (!Link->AssemblyOperations)
+		Link->AssemblyOperations = OpStruct;
+	else if (Front)
+	{
+		OpStruct->Next = Link->AssemblyOperations;
+		Link->AssemblyOperations = OpStruct;
+	}
+	else
+	{
+		for (PASSEMBLY_OPERATION T = Link->AssemblyOperations; T; T = T->Next)
+		{
+			if (T->Next == NULL)
+			{
+				T->Next = OpStruct;
+				break;
+			}
+		}
+	}
+	return TRUE;
+};
+
 VOID NrFreeBlock(PNATIVE_BLOCK Block)
 {
 	NrFreeBlock2(Block->Front, Block->Back);
@@ -33,8 +65,8 @@ VOID NrFreeBlock2(PNATIVE_LINK Start, PNATIVE_LINK End)
 	{
 		PNATIVE_LINK Next = T->Next;
 		if (T->RawInstData)
-			free(T->RawInstData);
-		free(T);
+			Free(T->RawInstData);
+		Free(T);
 		T = Next;
 	}
 }
@@ -45,7 +77,7 @@ BOOLEAN NrDeepCopyLink(PNATIVE_LINK Dest, PNATIVE_LINK Source)
 	{
 		*(PVOID*)&Dest->LinkData = *(PVOID*)&Source->LinkData;
 		Dest->RawInstSize = Source->RawInstSize;
-		Dest->RawInstData = malloc(Source->RawInstSize);
+		Dest->RawInstData = Allocate(Source->RawInstSize);
 		if (!Dest->RawInstData)
 			return FALSE;
 		RtlCopyMemory(Dest->RawInstData, Source->RawInstData, Source->RawInstSize);
@@ -54,7 +86,7 @@ BOOLEAN NrDeepCopyLink(PNATIVE_LINK Dest, PNATIVE_LINK Source)
 		if (XedError != XED_ERROR_NONE)
 		{
 			MLog("Failed to decode in NrDeepCopy. Error: %s\n", XedErrorEnumToString(XedError));
-			free(Dest->RawInstData);
+			Free(Dest->RawInstData);
 			return FALSE;
 		}
 	}
@@ -187,6 +219,9 @@ BOOLEAN NrCreateLabels(PNATIVE_BLOCK Block)
 
 BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 {
+	if (!CodeLength)
+		return FALSE;
+
 	PUCHAR CodePointer = (PUCHAR)RawCode;
 	PUCHAR CodeEnd = CodePointer + CodeLength;
 	while (CodePointer < CodeEnd)
@@ -211,7 +246,7 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 		}
 		
 		UINT RawInstSize = XedDecodedInstGetLength(&Link->DecodedInst);
-		PVOID RawInstData = malloc(RawInstSize);
+		PVOID RawInstData = Allocate(RawInstSize);
 		if (!RawInstData)
 		{
 			MLog("Could not allocate space for RawInstData in NrDissassemble\n");
@@ -233,7 +268,7 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 		return FALSE;
 	}
 
-	return TRUE;
+	return IrCountLinks(Block);
 }
 
 PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
@@ -245,17 +280,27 @@ PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 	if (!TotalSize)
 		return NULL;
 
-	PUCHAR Buffer = (PUCHAR)malloc(TotalSize);
+	PUCHAR Buffer = (PUCHAR)Allocate(TotalSize);
 	if (!Buffer)
 		return NULL;
 
-	PUCHAR CodePointer = Buffer;
+	PUCHAR CopyTarget = Buffer;
 	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
 		if (T->LinkData.Flags & CODE_FLAG_IS_LABEL)
 			continue;
-		RtlCopyMemory(CodePointer, T->RawInstData, T->RawInstSize);
-		CodePointer += T->RawInstSize;
+		RtlCopyMemory(CopyTarget, T->RawInstData, T->RawInstSize);
+
+		for (PASSEMBLY_OPERATION AsmOp = T->AssemblyOperations; AsmOp; AsmOp = AsmOp->Next)
+		{
+			if (!AsmOp->Operation(T, CopyTarget, AsmOp->Context))
+			{
+				Free(Buffer);
+				return NULL;
+			}
+		}
+
+		CopyTarget += T->RawInstSize;
 	}
 	*AssembledSize = TotalSize;
 
@@ -292,9 +337,7 @@ BOOLEAN NrAreFlagsClobbered(PNATIVE_LINK Start, PNATIVE_LINK End)
 
 	XED_FLAG_SET Ledger;
 	CONST XED_SIMPLE_FLAG* SimpleFlag = XedDecodedInstGetRflagsInfo(&Start->DecodedInst);
-	CONST XED_FLAG_SET* Written = XedSimpleFlagGetWrittenFlagSet(SimpleFlag);
-	CONST XED_FLAG_SET* Undefined = XedSimpleFlagGetUndefinedFlagSet(SimpleFlag);
-	Ledger.flat = (Written->flat | Undefined->flat);
+	Ledger.flat = (XedSimpleFlagGetWrittenFlagSet(SimpleFlag)->flat | XedSimpleFlagGetUndefinedFlagSet(SimpleFlag)->flat);
 
 	for (PNATIVE_LINK T = Start->Next; T && T != End->Next; T = T->Next)
 	{
@@ -302,14 +345,11 @@ BOOLEAN NrAreFlagsClobbered(PNATIVE_LINK Start, PNATIVE_LINK End)
 			continue;
 
 		CONST XED_SIMPLE_FLAG* InstFlag = XedDecodedInstGetRflagsInfo(&Start->DecodedInst);
-		CONST XED_FLAG_SET* IRead = XedSimpleFlagGetReadFlagSet(InstFlag);
 
-		if (IRead->flat & Ledger.flat)
+		if (Ledger.flat & XedSimpleFlagGetReadFlagSet(InstFlag)->flat)
 			return FALSE;
 
-		CONST XED_FLAG_SET* IWritten = XedSimpleFlagGetWrittenFlagSet(InstFlag);
-		CONST XED_FLAG_SET* IUndefined = XedSimpleFlagGetUndefinedFlagSet(InstFlag);
-		Ledger.flat &= ~(IWritten->flat | IUndefined->flat);
+		Ledger.flat &= ~(XedSimpleFlagGetWrittenFlagSet(InstFlag)->flat | XedSimpleFlagGetUndefinedFlagSet(InstFlag)->flat);
 	}
 	return TRUE;
 }

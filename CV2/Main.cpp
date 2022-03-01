@@ -15,7 +15,7 @@ int main()
 	NrDissasemble(&Block, TestArray, sizeof(TestArray));
 	//NrDebugPrintIClass(&Block);
 	PFUNCTION_BLOCK FbTree = FbCreateTree(&Block);
-	FbPrintTakenPath(FbTree);
+	FbPrintNotTakenPath(FbTree);
 	FbFreeTree(FbTree);
 	system("pause");
 
