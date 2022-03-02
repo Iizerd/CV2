@@ -8,13 +8,16 @@
 #define IrGeneralFlag(Index)	(1<<Index)
 #define IrSpecificFlag(Index)	(1<<(Index + 16))
 
-#define CODE_FLAG_IS_LABEL		IrGeneralFlag(0)
-#define CODE_FLAG_IS_INST		IrGeneralFlag(1)
-#define CODE_FLAG_IS_RAW_DATA	IrGeneralFlag(2)
-#define CODE_FLAG_GROUP_START	IrGeneralFlag(3)
-#define CODE_FLAG_GROUP_END		IrGeneralFlag(4)
-#define CODE_FLAG_IN_GROUP		IrGeneralFlag(5)
-#define CODE_FLAG_USES_LABEL	IrGeneralFlag(6)
+
+#define CODE_FLAG_IS_INST		IrGeneralFlag(0)
+#define CODE_FLAG_IS_LABEL		IrGeneralFlag(1) //Subtle difference between label and marker. Labels are targets for jumps and act as block breaks.
+#define CODE_FLAG_IS_MARKER		IrGeneralFlag(2)
+#define CODE_FLAG_IS_RAW_DATA	IrGeneralFlag(3) //Markers are for rip relative instructions. This will make parsing function blocks faster much. Otherwise would have to make sure the Label is referenced by a jump somewhere.
+#define CODE_FLAG_GROUP_START	IrGeneralFlag(4)
+#define CODE_FLAG_GROUP_END		IrGeneralFlag(5)
+#define CODE_FLAG_IN_GROUP		IrGeneralFlag(6)
+#define CODE_FLAG_USES_LABEL	IrGeneralFlag(7)
+#define CODE_FLAG_USES_MARKER	IrGeneralFlag(8)
 
 typedef struct _LINK_DATA
 {
@@ -22,15 +25,19 @@ typedef struct _LINK_DATA
 	{
 		struct
 		{
-			UINT32 IsLabel : 1;
 			UINT32 IsInstruction : 1;
+			UINT32 IsJmpTarget : 1;
+			UINT32 IsMarker : 1;
+			UINT32 IsRawData : 1;
 			UINT32 GroupStart : 1;
 			UINT32 GroupEnd : 1;
 			UINT32 InGroup : 1;
+			UINT32 UsesLabel : 1;
+			UINT32 UsesMarker : 1;
 		};
 		UINT32 Flags;
 	};
-	INT32 LabelId;
+	INT32 Id;
 }LINK_DATA, * PLINK_DATA; STATIC_ASSERT(sizeof(LINK_DATA) == 8, "Bad LINK_DATA size.");
 
 typedef struct _INST_LINK
@@ -44,7 +51,7 @@ typedef struct _INST_BLOCK
 {
 	PINST_LINK		Front;
 	PINST_LINK		Back;
-}INST_BLOCK, * PINST_BLOCK;
+}INST_BLOCK, * PINST_BLOCK; STATIC_ASSERT(sizeof(INST_BLOCK) == 16, "Bad INST_BLOCK size.");
 
 typedef VOID(*FnForEachCallback)(PINST_LINK);
 VOID _IrForEachLink(PINST_BLOCK Block, FnForEachCallback Callback);
@@ -99,9 +106,15 @@ VOID _IrReplaceBlock(PINST_BLOCK ParentBlock, PINST_LINK Start, PINST_LINK End, 
 VOID _IrReplaceBlock2(PINST_BLOCK ParentBlock, PINST_BLOCK Block1, PINST_BLOCK Block2);
 #define IrReplaceBlock2(ParentBlock, Block1, Block2) _IrReplaceBlock2((PINST_BLOCK)ParentBlock, (PINST_BLOCK)Block1, (PINST_BLOCK)Block2);
 
+BOOLEAN _IrGetMinId(PINST_BLOCK Block, PINT32 Id);
+#define IrGetMinId(Block, Id) _IrGetMinId((PINST_BLOCK)Block, Id);
+
+BOOLEAN _IrGetMaxId(PINST_BLOCK Block, PINT32 Id);
+#define IrGetMaxId(Block, Id) _IrGetMaxId((PINST_BLOCK)Block, Id);
+
 //Rebases a block's labels to start at a certain number.
-VOID _IrRebaseLabels(PINST_BLOCK Block, INT32 LabelBase);
-#define IrRebaseLabels(Block, LabelBase) _IrRebaseLabels((PINST_BLOCK)Block, LabelBase)
+VOID _IrRebaseIds(PINST_BLOCK Block, INT32 LabelBase);
+#define IrRebaseIds(Block, LabelBase) _IrRebaseIds((PINST_BLOCK)Block, LabelBase)
 
 //Assures that there are no conflicting labels in the two blocks.
 VOID _IrPrepForMerge(PINST_BLOCK Block1, PINST_BLOCK Block2);

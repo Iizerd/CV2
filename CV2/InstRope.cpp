@@ -218,51 +218,65 @@ VOID _IrReplaceBlock2(PINST_BLOCK ParentBlock, PINST_BLOCK Block1, PINST_BLOCK B
 	return _IrReplaceBlock(ParentBlock, Block1->Front, Block1->Back, Block2);
 }
 
-VOID _IrRebaseLabels(PINST_BLOCK Block, INT32 LabelBase)
+BOOLEAN _IrGetMinId(PINST_BLOCK Block, PINT32 Id)
 {
-	BOOLEAN FoundFirstLabel = FALSE;
-	INT32 LowestLabel = 0;
+	BOOLEAN FoundFirstId = FALSE;
+	INT32 LowestId = 0;
 	for (PINST_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
-		if (T->LinkData.Flags & CODE_FLAG_IS_LABEL)
+		if (T->LinkData.Flags & (CODE_FLAG_IS_LABEL | CODE_FLAG_IS_MARKER))
 		{
-			if (FALSE == FoundFirstLabel)
+			if (FALSE == FoundFirstId)
 			{
-				LowestLabel = T->LinkData.LabelId;
-				FoundFirstLabel = TRUE;
+				LowestId = T->LinkData.Id;
+				FoundFirstId = TRUE;
 			}
-			else if (T->LinkData.LabelId < LowestLabel)
-				LowestLabel = T->LinkData.LabelId;
+			else if (T->LinkData.Id < LowestId)
+				LowestId = T->LinkData.Id;
 		}
 	}
-	if (FoundFirstLabel)
+	*Id = LowestId;
+	return FoundFirstId;
+}
+
+BOOLEAN _IrGetMaxId(PINST_BLOCK Block, PINT32 Id)
+{
+	BOOLEAN FoundFirstId = FALSE;
+	INT32 HighestId = 0;
+	for (PINST_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
-		INT32 LabelDelta = LabelBase - LowestLabel;
+		if (T->LinkData.Flags & (CODE_FLAG_IS_LABEL | CODE_FLAG_IS_MARKER))
+		{
+			if (FALSE == FoundFirstId)
+			{
+				HighestId = T->LinkData.Id;
+				FoundFirstId = TRUE;
+			}
+			else if (T->LinkData.Id > HighestId)
+				HighestId = T->LinkData.Id;
+		}
+	}
+	*Id = HighestId;
+	return FoundFirstId;
+}
+
+VOID _IrRebaseIds(PINST_BLOCK Block, INT32 IdBase)
+{
+	INT32 LowestId = 0;
+	if (_IrGetMinId(Block, &LowestId))
+	{
+		INT32 IdDelta = IdBase - LowestId;
 		for (PINST_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 		{
-			if (T->LinkData.Flags & (CODE_FLAG_IS_LABEL | CODE_FLAG_USES_LABEL))
-				T->LinkData.LabelId += LabelDelta;
+			if (T->LinkData.Flags & (CODE_FLAG_IS_LABEL | CODE_FLAG_IS_MARKER | CODE_FLAG_USES_LABEL | CODE_FLAG_USES_MARKER))
+				T->LinkData.Id += IdDelta;
 		}
 	}
 }
 
 VOID _IrPrepForMerge(PINST_BLOCK Block1, PINST_BLOCK Block2)
 {
-	BOOLEAN FoundFirstLabel = FALSE;
-	INT32 HighestLabel = 0;
-	for (PINST_LINK T = Block1->Front; T && T != Block1->Back->Next; T = T->Next)
-	{
-		if (T->LinkData.Flags & CODE_FLAG_IS_LABEL)
-		{
-			if (FALSE == FoundFirstLabel)
-			{
-				HighestLabel = T->LinkData.LabelId;
-				FoundFirstLabel = TRUE;
-			}
-			else if (T->LinkData.LabelId > HighestLabel)
-				HighestLabel = T->LinkData.LabelId;
-		}
-	}
-	if (FoundFirstLabel)
-		_IrRebaseLabels(Block2, HighestLabel + 1);
+	INT32 HighestId = 0;
+	if (_IrGetMaxId(Block1, &HighestId))
+		_IrRebaseIds(Block2, HighestId + 1);
 }

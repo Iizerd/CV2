@@ -17,7 +17,7 @@ VOID NrInitForLabel(PNATIVE_LINK Link, UINT32 LabelId, PNATIVE_LINK Next, PNATIV
 {
 	RtlSecureZeroMemory(Link, sizeof(NATIVE_LINK));
 	Link->LinkData.Flags |= CODE_FLAG_IS_LABEL;
-	Link->LinkData.LabelId = LabelId;
+	Link->LinkData.Id = LabelId;
 	Link->Next = Next;
 	Link->Prev = Prev;
 }
@@ -203,13 +203,13 @@ BOOLEAN NrCreateLabels(PNATIVE_BLOCK Block)
 		}
 
 		if (TargetLink->Prev && (TargetLink->Prev->LinkData.Flags & CODE_FLAG_IS_LABEL))
-			T->LinkData.LabelId = TargetLink->Prev->LinkData.LabelId;
+			T->LinkData.Id = TargetLink->Prev->LinkData.Id;
 		else
 		{
 			PNATIVE_LINK LabelLink = NrAllocateLink();
 			NrInitForLabel(LabelLink, CurrentLabelId, NULL, NULL);
 			IrInsertLinkBefore(Block, TargetLink, LabelLink);
-			T->LinkData.LabelId = CurrentLabelId;
+			T->LinkData.Id = CurrentLabelId;
 			++CurrentLabelId;
 		}
 
@@ -287,20 +287,21 @@ PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 	PUCHAR CopyTarget = Buffer;
 	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
-		if (T->LinkData.Flags & CODE_FLAG_IS_LABEL)
-			continue;
-		RtlCopyMemory(CopyTarget, T->RawInstData, T->RawInstSize);
-
-		for (PASSEMBLY_OPERATION AsmOp = T->AssemblyOperations; AsmOp; AsmOp = AsmOp->Next)
+		if (T->LinkData.Flags & (CODE_FLAG_IS_INST | CODE_FLAG_IS_RAW_DATA))
 		{
-			if (!AsmOp->Operation(T, CopyTarget, AsmOp->Context))
-			{
-				Free(Buffer);
-				return NULL;
-			}
-		}
+			RtlCopyMemory(CopyTarget, T->RawInstData, T->RawInstSize);
 
-		CopyTarget += T->RawInstSize;
+			for (PASSEMBLY_OPERATION AsmOp = T->AssemblyOperations; AsmOp; AsmOp = AsmOp->Next)
+			{
+				if (!AsmOp->Operation(T, CopyTarget, AsmOp->Context))
+				{
+					Free(Buffer);
+					return NULL;
+				}
+			}
+
+			CopyTarget += T->RawInstSize;
+		}
 	}
 	*AssembledSize = TotalSize;
 
@@ -313,13 +314,13 @@ VOID NrDebugPrintIClass(PNATIVE_BLOCK Block)
 	{
 		if (T->LinkData.Flags & CODE_FLAG_IS_LABEL)
 		{
-			printf("%d:\n", T->LinkData.LabelId);
+			printf("%d:\n", T->LinkData.Id);
 		}
 		else if (T->LinkData.Flags & CODE_FLAG_IS_INST)
 		{
 			printf("\t%s", XedIClassEnumToString(XedDecodedInstGetIClass(&T->DecodedInst)));
 			if (T->LinkData.Flags & CODE_FLAG_IS_REL_JUMP)
-				printf(" %d", T->LinkData.LabelId);
+				printf(" %d", T->LinkData.Id);
 			printf("\n");
 		}
 		else

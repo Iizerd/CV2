@@ -14,7 +14,6 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 		MLog("Could not allocate memory for first function block.\n");
 		return NULL;
 	}
-	//RtlZeroMemory(CurrentBlock, sizeof(FUNCTION_BLOCK));
 	CurrentBlock->Block.Front = CodeBlock->Front;
 	
 	for (PNATIVE_LINK T = CodeBlock->Front; T && T != CodeBlock->Back->Next; T = T->Next)
@@ -30,7 +29,6 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 				Free(CurrentBlock);
 				return NULL;
 			}
-			//RtlZeroMemory(NextBlock, sizeof(FUNCTION_BLOCK));
 
 			if (T->LinkData.Flags & CODE_FLAG_IS_REL_JUMP)
 			{
@@ -64,11 +62,11 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 	{
 		if (FunctionBlocks[i]->Conditional)
 		{
-			INT32 TargetLabel = FunctionBlocks[i]->Block.Back->LinkData.LabelId;
+			INT32 TargetLabel = FunctionBlocks[i]->Block.Back->LinkData.Id;
 			for (INT j = i + 1; j < FunctionBlocks.size(); j++)
 			{
 				if ((FunctionBlocks[j]->Block.Front->LinkData.Flags & CODE_FLAG_IS_LABEL) && 
-					TargetLabel == FunctionBlocks[j]->Block.Front->LinkData.LabelId)
+					TargetLabel == FunctionBlocks[j]->Block.Front->LinkData.Id)
 				{
 					FunctionBlocks[i]->Taken = FunctionBlocks[j];
 					goto ContinueToNextBlock;
@@ -78,7 +76,7 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 			for (INT j = i - 1; j >= 0; j--)
 			{
 				if ((FunctionBlocks[j]->Block.Front->LinkData.Flags & CODE_FLAG_IS_LABEL) &&
-					TargetLabel == FunctionBlocks[j]->Block.Front->LinkData.LabelId)
+					TargetLabel == FunctionBlocks[j]->Block.Front->LinkData.Id)
 				{
 					FunctionBlocks[i]->Taken = FunctionBlocks[j];
 					goto ContinueToNextBlock;
@@ -116,6 +114,7 @@ VOID FbPrintTakenPath(PFUNCTION_BLOCK TreeHead)
 		printf("\n");
 	}
 }
+
 VOID FbPrintNotTakenPath(PFUNCTION_BLOCK TreeHead)
 {
 	while (TreeHead)
@@ -125,6 +124,7 @@ VOID FbPrintNotTakenPath(PFUNCTION_BLOCK TreeHead)
 		printf("\n");
 	}
 }
+
 VOID FbFreeTree(PFUNCTION_BLOCK TreeHead)
 {
 	if (TreeHead)
