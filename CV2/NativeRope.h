@@ -8,24 +8,34 @@
 
 struct _NATIVE_LINK;
 
-typedef BOOLEAN(*FnAssemblyOperation)(_NATIVE_LINK* Link, PUCHAR RawData, PVOID Context);
-typedef struct _ASSEMBLY_OPERATION
+
+typedef BOOLEAN(*FnAssemblyPreOp)(_NATIVE_LINK* Link, PVOID Context);
+typedef struct _ASSEMBLY_PREOP
 {
-	_ASSEMBLY_OPERATION*	Next;
-	PVOID					Context;
-	FnAssemblyOperation		Operation;
-}ASSEMBLY_OPERATION, *PASSEMBLY_OPERATION;
+	_ASSEMBLY_PREOP*	Next;
+	PVOID				Context;
+	FnAssemblyPreOp		Operation;
+}ASSEMBLY_PREOP, * PASSEMBLY_PREOP;
+
+typedef BOOLEAN(*FnAssemblyPostOp)(_NATIVE_LINK* Link, PUCHAR RawData, PVOID Context);
+typedef struct _ASSEMBLY_POSTOP
+{
+	_ASSEMBLY_POSTOP*	Next;
+	PVOID				Context;
+	FnAssemblyPostOp	Operation;
+}ASSEMBLY_POSTOP, *PASSEMBLY_POSTOP;
 
 typedef struct _NATIVE_LINK
 {
-	_NATIVE_LINK*	 Next;
-	_NATIVE_LINK*	 Prev;
-	LINK_DATA		 LinkData;
+	_NATIVE_LINK*		Next;
+	_NATIVE_LINK*		Prev;
+	LINK_DATA			LinkData;
 //-----------END OF HEADER-----------
-	PASSEMBLY_OPERATION AssemblyOperations;
-	PVOID			 RawInstData;
-	UINT			 RawInstSize;
-	XED_DECODED_INST DecodedInst;
+	PASSEMBLY_PREOP		PreAssemblyOperations;
+	PASSEMBLY_POSTOP	PostAssemblyOperations;
+	PVOID				RawInstData;
+	UINT				RawInstSize;
+	XED_DECODED_INST	DecodedInst;
 }NATIVE_LINK, *PNATIVE_LINK;
 
 typedef struct _NATIVE_BLOCK
@@ -49,7 +59,13 @@ VOID NrInitForInst(PNATIVE_LINK Link);
 
 VOID NrInitForLabel(PNATIVE_LINK Link, UINT32 LabelId, PNATIVE_LINK Next, PNATIVE_LINK Prev);
 
-BOOLEAN NrAddAssemblyOperation(PNATIVE_LINK Link, FnAssemblyOperation Operation, PVOID Context, BOOLEAN Front);
+PNATIVE_LINK NrTraceToLabel(PNATIVE_LINK Start, PNATIVE_LINK End, ULONG Id);
+
+PNATIVE_LINK NrTraceToMarker(PNATIVE_LINK Start, PNATIVE_LINK End, ULONG Id);
+
+BOOLEAN NrAddPreAssemblyOperation(PNATIVE_LINK Link, FnAssemblyPreOp Operation, PVOID Context, BOOLEAN Front);
+
+BOOLEAN NrAddPostAssemblyOperation(PNATIVE_LINK Link, FnAssemblyPostOp Operation, PVOID Context, BOOLEAN Front);
 
 BOOLEAN NrDeepCopyLink(PNATIVE_LINK Dest, PNATIVE_LINK Source);
 
@@ -62,6 +78,10 @@ UINT NrCalcBlockSize(PNATIVE_BLOCK Block);
 PNATIVE_LINK NcValidateJump(PNATIVE_LINK Jmp, INT32 Delta);
 
 BOOLEAN NrCreateLabels(PNATIVE_BLOCK Block);
+
+BOOLEAN NrCalcRelativeJumpDisp(PNATIVE_LINK Link, PINT32 DeltaOut);
+
+BOOL NrFixRelativeJumps(PNATIVE_BLOCK Block);
 
 BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength);
 

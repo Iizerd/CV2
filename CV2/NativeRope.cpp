@@ -5,13 +5,21 @@ VOID NrFreeLink(PNATIVE_LINK Link)
 {
 	if (Link->RawInstData)
 		Free(Link->RawInstData);
-	for (PASSEMBLY_OPERATION AsmOp = Link->AssemblyOperations; AsmOp;)
+	for (PASSEMBLY_PREOP PreOp = Link->PreAssemblyOperations; PreOp;)
 	{
-		PASSEMBLY_OPERATION NextOp = AsmOp->Next;
-		if (AsmOp->Context)
-			Free(AsmOp->Context);
-		Free(AsmOp);
-		AsmOp = NextOp;
+		PASSEMBLY_PREOP NextOp = PreOp->Next;
+		if (PreOp->Context)
+			Free(PreOp->Context);
+		Free(PreOp);
+		PreOp = NextOp;
+	}
+	for (PASSEMBLY_POSTOP PostOp = Link->PostAssemblyOperations; PostOp;)
+	{
+		PASSEMBLY_POSTOP NextOp = PostOp->Next;
+		if (PostOp->Context)
+			Free(PostOp->Context);
+		Free(PostOp);
+		PostOp = NextOp;
 	}
 	Free(Link);
 }
@@ -52,31 +60,83 @@ VOID NrInitForLabel(PNATIVE_LINK Link, UINT32 LabelId, PNATIVE_LINK Next, PNATIV
 	Link->Prev = Prev;
 }
 
-BOOLEAN NrAddAssemblyOperation(PNATIVE_LINK Link, FnAssemblyOperation Operation, PVOID Context, BOOLEAN Front)
+PNATIVE_LINK NrTraceToLabel(PNATIVE_LINK Start, PNATIVE_LINK End, ULONG Id)
 {
-	PASSEMBLY_OPERATION OpStruct = AllocateS(ASSEMBLY_OPERATION);
-	if (!OpStruct)
+	for (PNATIVE_LINK T = Start; T && T != End->Next; T = T->Next)
 	{
-		MLog("Failed to allocate memory for Operation Structure.\n");
+		if ((T->LinkData.Flags & CODE_FLAG_IS_LABEL) && T->LinkData.Id == Id)
+			return T;
+	}
+	return NULL;
+}
+
+PNATIVE_LINK NrTraceToMarker(PNATIVE_LINK Start, PNATIVE_LINK End, ULONG Id)
+{
+	for (PNATIVE_LINK T = Start; T && T != End->Next; T = T->Next)
+	{
+		if ((T->LinkData.Flags & CODE_FLAG_IS_MARKER) && T->LinkData.Id == Id)
+			return T;
+	}
+	return NULL;
+}
+
+BOOLEAN NrAddPreAssemblyOperation(PNATIVE_LINK Link, FnAssemblyPreOp Operation, PVOID Context, BOOLEAN Front)
+{
+	PASSEMBLY_PREOP PreOpStruct = AllocateS(ASSEMBLY_PREOP);
+	if (!PreOpStruct)
+	{
+		MLog("Failed to allocate memory for pre assembly operation structure.\n");
 		return FALSE;
 	}
-	OpStruct->Context = Context;
-	OpStruct->Operation = Operation;
-	
-	if (!Link->AssemblyOperations)
-		Link->AssemblyOperations = OpStruct;
+	PreOpStruct->Context = Context;
+	PreOpStruct->Operation = Operation;
+
+	if (!Link->PreAssemblyOperations)
+		Link->PreAssemblyOperations = PreOpStruct;
 	else if (Front)
 	{
-		OpStruct->Next = Link->AssemblyOperations;
-		Link->AssemblyOperations = OpStruct;
+		PreOpStruct->Next = Link->PreAssemblyOperations;
+		Link->PreAssemblyOperations = PreOpStruct;
 	}
 	else
 	{
-		for (PASSEMBLY_OPERATION T = Link->AssemblyOperations; T; T = T->Next)
+		for (PASSEMBLY_PREOP T = Link->PreAssemblyOperations; T; T = T->Next)
 		{
 			if (T->Next == NULL)
 			{
-				T->Next = OpStruct;
+				T->Next = PreOpStruct;
+				break;
+			}
+		}
+	}
+	return TRUE;
+};
+
+BOOLEAN NrAddPostAssemblyOperation(PNATIVE_LINK Link, FnAssemblyPostOp Operation, PVOID Context, BOOLEAN Front)
+{
+	PASSEMBLY_POSTOP PostOpStruct = AllocateS(ASSEMBLY_POSTOP);
+	if (!PostOpStruct)
+	{
+		MLog("Failed to allocate memory for post assembly operation structure.\n");
+		return FALSE;
+	}
+	PostOpStruct->Context = Context;
+	PostOpStruct->Operation = Operation;
+	
+	if (!Link->PostAssemblyOperations)
+		Link->PostAssemblyOperations = PostOpStruct;
+	else if (Front)
+	{
+		PostOpStruct->Next = Link->PostAssemblyOperations;
+		Link->PostAssemblyOperations = PostOpStruct;
+	}
+	else
+	{
+		for (PASSEMBLY_POSTOP T = Link->PostAssemblyOperations; T; T = T->Next)
+		{
+			if (T->Next == NULL)
+			{
+				T->Next = PostOpStruct;
 				break;
 			}
 		}
@@ -95,6 +155,7 @@ BOOLEAN NrDeepCopyLink(PNATIVE_LINK Dest, PNATIVE_LINK Source)
 			return FALSE;
 		RtlCopyMemory(Dest->RawInstData, Source->RawInstData, Source->RawInstSize);
 
+		XedDecodedInstZeroSetMode(&Dest->DecodedInst, &XedGlobalMachineState);
 		XED_ERROR_ENUM XedError = XedDecode(&Dest->DecodedInst, (CONST PUCHAR)Dest->RawInstData, Dest->RawInstSize);
 		if (XedError != XED_ERROR_NONE)
 		{
@@ -137,7 +198,8 @@ UINT NrCalcBlockSize(PNATIVE_BLOCK Block)
 	UINT Total = 0;
 	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
-		Total += T->RawInstSize;
+		if (T->LinkData.Flags & (CODE_FLAG_IS_INST | CODE_FLAG_IS_RAW_DATA))
+			Total += T->RawInstSize;
 	}
 	return Total;
 }
@@ -230,6 +292,85 @@ BOOLEAN NrCreateLabels(PNATIVE_BLOCK Block)
 	}
 }
 
+BOOLEAN NrCalcRelativeJumpDisp(PNATIVE_LINK Link, PINT32 DeltaOut)
+{
+	INT32 Delta = 0;
+	for (PNATIVE_LINK T = Link; T; T = T->Prev)
+	{
+		if (T->LinkData.Flags & CODE_FLAG_IS_LABEL)
+		{
+			if (T->LinkData.Id == Link->LinkData.Id)
+			{
+				*DeltaOut = Delta;
+				return TRUE;
+			}
+			continue;
+		}
+		Delta -= T->RawInstSize;
+	}
+
+	Delta = 0;
+	for (PNATIVE_LINK T = Link->Next; T; T = T->Next)
+	{
+		if (T->LinkData.Flags & CODE_FLAG_IS_LABEL)
+		{
+			if (T->LinkData.Id == Link->LinkData.Id)
+			{
+				*DeltaOut = Delta;
+				return TRUE;
+			}
+			continue;
+		}
+		Delta += T->RawInstSize;
+	}
+	return FALSE;
+}
+
+BOOL NrFixRelativeJumps(PNATIVE_BLOCK Block)
+{
+	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next;)
+	{
+		if (T->LinkData.Flags & CODE_FLAG_IS_REL_JUMP)
+		{
+			if (T->RawInstData)
+			{
+				MLog("Relative jump instruction has no raw data!\n");
+				return FALSE;
+			}
+
+			INT32 BranchDisp = 0;
+			if (!NrCalcRelativeJumpDisp(T, &BranchDisp))
+			{
+				MLog("Could not calculate relative jump displacement.\n");
+				return FALSE;
+			}
+
+			UINT BranchInstSize = 0;
+			XED_ICLASS_ENUM IClass = XedDecodedInstGetIClass(&T->DecodedInst);
+			XED_ENCODER_INSTRUCTION RawBranchInst;
+			XedInst1(&RawBranchInst, XedGlobalMachineState, IClass, 32, XedRelBr(BranchDisp, 32));
+			PUCHAR AssembledBranch = XedEncodeInstructions(&RawBranchInst, 1, &BranchInstSize);
+			if (!AssembledBranch || !BranchInstSize)
+			{
+				MLog("Could not assemble new relative jump. [%s][%d]\n", XedIClassEnumToString(IClass), BranchDisp);
+				return FALSE;
+			}
+
+			XedDecodedInstZeroSetMode(&T->DecodedInst, &XedGlobalMachineState);
+			XED_ERROR_ENUM XedError = XedDecode(&T->DecodedInst, AssembledBranch, BranchInstSize);
+			if (XedError != XED_ERROR_NONE) //If xed can't decode something it just encoded.
+				return FALSE;
+
+			Free(T->RawInstData);
+			T->RawInstData = AssembledBranch;
+			T->RawInstSize = BranchInstSize;
+		}
+
+		T = T->Next;
+	}
+	return TRUE;
+}
+
 BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 {
 	if (!CodeLength)
@@ -249,6 +390,7 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 		NrInitForInst(Link);
 		UINT PossibleSize = Min(15, CodeEnd - CodePointer);
 
+		XedDecodedInstZeroSetMode(&Link->DecodedInst, &XedGlobalMachineState);
 		XED_ERROR_ENUM XedError = XedDecode(&Link->DecodedInst, CodePointer, PossibleSize);
 		if (XedError != XED_ERROR_NONE)
 		{
@@ -286,28 +428,48 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 
 PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 {
-	if (!Block->Front || !Block->Back || !AssembledSize)
-		return NULL;
-
 	UINT TotalSize = NrCalcBlockSize(Block);
-	if (!TotalSize)
+	if (!Block->Front || !Block->Back || !AssembledSize || !TotalSize)
+	{
+		MLog("Invalid block to assemble.\n");
 		return NULL;
+	}
+
+	if (!NrFixRelativeJumps(Block))
+	{
+		MLog("Failed to fix all relative jumps before assembling.\n");
+		return NULL;
+	}
 
 	PUCHAR Buffer = (PUCHAR)Allocate(TotalSize);
 	if (!Buffer)
+	{
+		MLog("Could not allocate assembly buffer in NrAssemble. Size:[%u]\n", TotalSize);
 		return NULL;
+	}
 
 	PUCHAR CopyTarget = Buffer;
 	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
 		if (T->LinkData.Flags & (CODE_FLAG_IS_INST | CODE_FLAG_IS_RAW_DATA))
 		{
+			for (PASSEMBLY_PREOP PreOp = T->PreAssemblyOperations; PreOp; PreOp = PreOp->Next)
+			{
+				if (!PreOp->Operation(T, PreOp->Context))
+				{
+					MLog("Pre assembly operation failed.\n");
+					Free(Buffer);
+					return NULL;
+				}
+			}
+
 			RtlCopyMemory(CopyTarget, T->RawInstData, T->RawInstSize);
 
-			for (PASSEMBLY_OPERATION AsmOp = T->AssemblyOperations; AsmOp; AsmOp = AsmOp->Next)
+			for (PASSEMBLY_POSTOP PostOp = T->PostAssemblyOperations; PostOp; PostOp = PostOp->Next)
 			{
-				if (!AsmOp->Operation(T, CopyTarget, AsmOp->Context))
+				if (!PostOp->Operation(T, CopyTarget, PostOp->Context))
 				{
+					MLog("Post assembly operation failed.\n");
 					Free(Buffer);
 					return NULL;
 				}
@@ -317,8 +479,7 @@ PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 		}
 	}
 	*AssembledSize = TotalSize;
-
-	return NULL;
+	return Buffer;
 }
 
 VOID NrDebugPrintIClass(PNATIVE_BLOCK Block)
@@ -367,3 +528,4 @@ BOOLEAN NrAreFlagsClobbered(PNATIVE_LINK Start, PNATIVE_LINK End)
 	}
 	return TRUE;
 }
+
