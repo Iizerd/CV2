@@ -1,6 +1,36 @@
 #include "NativeRope.h"
 #include "Logging.h"
 
+VOID NrFreeLink(PNATIVE_LINK Link)
+{
+	if (Link->RawInstData)
+		Free(Link->RawInstData);
+	for (PASSEMBLY_OPERATION AsmOp = Link->AssemblyOperations; AsmOp;)
+	{
+		PASSEMBLY_OPERATION NextOp = AsmOp->Next;
+		if (AsmOp->Context)
+			Free(AsmOp->Context);
+		Free(AsmOp);
+		AsmOp = NextOp;
+	}
+	Free(Link);
+}
+
+VOID NrFreeBlock(PNATIVE_BLOCK Block)
+{
+	NrFreeBlock2(Block->Front, Block->Back);
+}
+
+VOID NrFreeBlock2(PNATIVE_LINK Start, PNATIVE_LINK End)
+{
+	for (PNATIVE_LINK T = Start; T && T != End->Next;)
+	{
+		PNATIVE_LINK Next = T->Next;
+		NrFreeLink(T);
+		T = Next;
+	}
+}
+
 VOID NrZeroLink(PNATIVE_LINK Link)
 {
 	RtlSecureZeroMemory(Link, sizeof(NATIVE_LINK));
@@ -53,23 +83,6 @@ BOOLEAN NrAddAssemblyOperation(PNATIVE_LINK Link, FnAssemblyOperation Operation,
 	}
 	return TRUE;
 };
-
-VOID NrFreeBlock(PNATIVE_BLOCK Block)
-{
-	NrFreeBlock2(Block->Front, Block->Back);
-}
-
-VOID NrFreeBlock2(PNATIVE_LINK Start, PNATIVE_LINK End)
-{
-	for (PNATIVE_LINK T = Start; T && T != End->Next;)
-	{
-		PNATIVE_LINK Next = T->Next;
-		if (T->RawInstData)
-			Free(T->RawInstData);
-		Free(T);
-		T = Next;
-	}
-}
 
 BOOLEAN NrDeepCopyLink(PNATIVE_LINK Dest, PNATIVE_LINK Source)
 {

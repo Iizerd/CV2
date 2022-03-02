@@ -36,7 +36,8 @@ typedef struct _NATIVE_BLOCK
 
 
 #define NrAllocateLink() AllocateS(NATIVE_LINK);
-#define NrFreeLink Free
+
+VOID NrFreeLink(PNATIVE_LINK Link);
 
 VOID NrFreeBlock(PNATIVE_BLOCK Block);
 
