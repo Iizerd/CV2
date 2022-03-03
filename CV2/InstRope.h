@@ -73,9 +73,6 @@ VOID _IrBuildBlockFromFront(PINST_LINK Inst, PINST_BLOCK Block);
 VOID _IrBuildBlockFromBack(PINST_LINK Inst, PINST_BLOCK Block);
 #define IrBuildBlockFromBack(Inst, Block) _IrBuildBlockFromBack((PINST_LINK)Inst, (PINST_BLOCK)Block);
 
-//VOID _IrFreeBlock(PINST_BLOCK Block);
-//#define IrFreeBlock(Block) _IrFreeBlock((PINST_BLOCK)Block);
-
 VOID _IrPutLinkBack(PINST_BLOCK Block, PINST_LINK Inst);
 #define IrPutLinkBack(Block, Inst) _IrPutLinkBack((PINST_BLOCK)Block, (PINST_LINK)Inst);
 
@@ -103,8 +100,12 @@ VOID _IrInsertBlockBefore(PINST_BLOCK ParentBlock, PINST_LINK Inst, PINST_BLOCK 
 VOID _IrReplaceBlock(PINST_BLOCK ParentBlock, PINST_LINK Start, PINST_LINK End, PINST_BLOCK Block);
 #define IrReplaceBlock(ParentBlock, Start, End, Block) _IrReplaceBlock((PINST_BLOCK)ParentBlock, (PINST_LINK)Start, (PINST_LINK)End, (PINST_BLOCK)Block);
 
+//First block is replaced with the second.
 VOID _IrReplaceBlock2(PINST_BLOCK ParentBlock, PINST_BLOCK Block1, PINST_BLOCK Block2);
 #define IrReplaceBlock2(ParentBlock, Block1, Block2) _IrReplaceBlock2((PINST_BLOCK)ParentBlock, (PINST_BLOCK)Block1, (PINST_BLOCK)Block2);
+
+VOID _IrReplaceLinkWithBlock(PINST_BLOCK ParentBlock, PINST_LINK Link, PINST_BLOCK Block);
+#define IrReplaceLinkWithBlock(ParentBlock, Link, Block) _IrReplaceLinkWithBlock((PINST_BLOCK)ParentBlock, (PINST_LINK)Link, (PINST_BLOCK)Block);
 
 BOOLEAN _IrGetMinId(PINST_BLOCK Block, PINT32 Id);
 #define IrGetMinId(Block, Id) _IrGetMinId((PINST_BLOCK)Block, Id);

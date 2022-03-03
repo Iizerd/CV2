@@ -4,6 +4,8 @@
 #include "NativeRope.h"
 #include "FunctionBlock.h"
 
+#include <iomanip>
+
 UCHAR TestArray[] = { 0x48, 0x09, 0xC0, 0x48, 0x09, 0xC0, 0x75, 0x06, 0x48, 0x21, 0xDB, 0x48, 0x21, 0xDB, 0x48, 0x31, 0xC9, 0x48, 0x31, 0xC9 };
 
 int main()
@@ -13,12 +15,14 @@ int main()
 	NATIVE_BLOCK Block;
 	Block.Back = Block.Front = NULL;
 	NrDissasemble(&Block, TestArray, sizeof(TestArray));
+	NrPromoteAllRelativeJumpsTo32BitDisplacement(&Block);
+
 
 	UINT AsmSize = 0;
 	PVOID Asm = NrAssemble(&Block, &AsmSize);
 
 	for (ULONG i = 0; i < AsmSize; i++)
-		printf("%X ", ((PUCHAR)Asm)[i]);
+		std::cout << std::setw(2) << std::setfill('0') << std::hex << (INT)((PUCHAR)Asm)[i] << ' '; //printf("%X ", ((PUCHAR)Asm)[i]);
 	printf("\n");
 
 	//NrDebugPrintIClass(&Block);

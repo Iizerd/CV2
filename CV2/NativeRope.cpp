@@ -326,7 +326,37 @@ BOOLEAN NrCalcRelativeJumpDisp(PNATIVE_LINK Link, PINT32 DeltaOut)
 	return FALSE;
 }
 
-BOOL NrFixRelativeJumps(PNATIVE_BLOCK Block)
+BOOLEAN NrPromoteAllRelativeJumpsTo32BitDisplacement(PNATIVE_BLOCK Block)
+{
+	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
+	{
+		if (T->LinkData.Flags & CODE_FLAG_IS_REL_JUMP)
+		{
+			UINT BranchInstSize = 0;
+			XED_ICLASS_ENUM IClass = XedDecodedInstGetIClass(&T->DecodedInst);
+			XED_ENCODER_INSTRUCTION RawBranchInst;
+			XedInst1(&RawBranchInst, XedGlobalMachineState, IClass, 32, XedRelBr(0, 32));
+			PUCHAR AssembledBranch = XedEncodeInstructions(&RawBranchInst, 1, &BranchInstSize);
+			if (!AssembledBranch || !BranchInstSize)
+			{
+				MLog("Could not assemble/promote new relative jump. [%s]\n", XedIClassEnumToString(IClass));
+				return FALSE;
+			}
+
+			XedDecodedInstZeroSetMode(&T->DecodedInst, &XedGlobalMachineState);
+			XED_ERROR_ENUM XedError = XedDecode(&T->DecodedInst, AssembledBranch, BranchInstSize);
+			if (XedError != XED_ERROR_NONE)
+				return FALSE;
+
+			Free(T->RawInstData);
+			T->RawInstData = AssembledBranch;
+			T->RawInstSize = BranchInstSize;
+		}
+	}
+	return TRUE;
+}
+
+BOOLEAN NrFixRelativeJumps(PNATIVE_BLOCK Block)
 {
 	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next;)
 	{
@@ -345,26 +375,45 @@ BOOL NrFixRelativeJumps(PNATIVE_BLOCK Block)
 				return FALSE;
 			}
 
-			UINT BranchInstSize = 0;
-			XED_ICLASS_ENUM IClass = XedDecodedInstGetIClass(&T->DecodedInst);
-			XED_ENCODER_INSTRUCTION RawBranchInst;
-			XedInst1(&RawBranchInst, XedGlobalMachineState, IClass, 32, XedRelBr(BranchDisp, 32));
-			PUCHAR AssembledBranch = XedEncodeInstructions(&RawBranchInst, 1, &BranchInstSize);
-			if (!AssembledBranch || !BranchInstSize)
+			//If it takes more bits than available to represent current displacement
+			if (log2(abs(BranchDisp)) + 1 > XedDecodedInstGetBranchDisplacementWidthBits(&T->DecodedInst))
 			{
-				MLog("Could not assemble new relative jump. [%s][%d]\n", XedIClassEnumToString(IClass), BranchDisp);
-				return FALSE;
+				UINT BranchInstSize = 0;
+				XED_ICLASS_ENUM IClass = XedDecodedInstGetIClass(&T->DecodedInst);
+				XED_ENCODER_INSTRUCTION RawBranchInst;
+				XedInst1(&RawBranchInst, XedGlobalMachineState, IClass, 32, XedRelBr(BranchDisp, 32));
+				PUCHAR AssembledBranch = XedEncodeInstructions(&RawBranchInst, 1, &BranchInstSize);
+				if (!AssembledBranch || !BranchInstSize)
+				{
+					MLog("Could not assemble new relative jump. [%s][%d]\n", XedIClassEnumToString(IClass), BranchDisp);
+					return FALSE;
+				}
+
+				XedDecodedInstZeroSetMode(&T->DecodedInst, &XedGlobalMachineState);
+				XED_ERROR_ENUM XedError = XedDecode(&T->DecodedInst, AssembledBranch, BranchInstSize);
+				if (XedError != XED_ERROR_NONE) //If xed can't decode something it just encoded.
+					return FALSE;
+
+				Free(T->RawInstData);
+				T->RawInstData = AssembledBranch;
+				T->RawInstSize = BranchInstSize;
+
+				T = Block->Front;
+				continue;
 			}
-
-			XedDecodedInstZeroSetMode(&T->DecodedInst, &XedGlobalMachineState);
-			XED_ERROR_ENUM XedError = XedDecode(&T->DecodedInst, AssembledBranch, BranchInstSize);
-			if (XedError != XED_ERROR_NONE) //If xed can't decode something it just encoded.
-				return FALSE;
-
-			Free(T->RawInstData);
-			T->RawInstData = AssembledBranch;
-			T->RawInstSize = BranchInstSize;
+			else
+			{
+				//A bit hacky ya? Displacement is always going to be the last bits of the jump.
+				UINT BranchDispWidth = XedDecodedInstGetBranchDisplacementWidth(&T->DecodedInst);
+				switch (BranchDispWidth)
+				{
+				case 1: *(PINT8)&(((PUCHAR)T->RawInstData)[T->RawInstSize - BranchDispWidth]) = (INT8)BranchDisp; break;
+				case 2: *(PINT16)&(((PUCHAR)T->RawInstData)[T->RawInstSize - BranchDispWidth]) = (INT16)BranchDisp; break;
+				case 4: *(PINT32)&(((PUCHAR)T->RawInstData)[T->RawInstSize - BranchDispWidth]) = (INT32)BranchDisp; break;
+				}
+			}
 		}
+
 
 		T = T->Next;
 	}
@@ -428,6 +477,20 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 
 PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 {
+	//Do all pre assembly operations(which COULD change the size, thats why this is here)
+	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
+	{
+		for (PASSEMBLY_PREOP PreOp = T->PreAssemblyOperations; PreOp; PreOp = PreOp->Next)
+		{
+			if (!PreOp->Operation(T, PreOp->Context))
+			{
+				MLog("Pre assembly operation failed.\n");
+				return NULL;
+			}
+		}
+	}
+
+	//Fix up all jump deltas now that everything is where its going to be for final assembly.
 	if (!NrFixRelativeJumps(Block))
 	{
 		MLog("Failed to fix all relative jumps before assembling.\n");
@@ -453,15 +516,6 @@ PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 	{
 		if (T->LinkData.Flags & (CODE_FLAG_IS_INST | CODE_FLAG_IS_RAW_DATA))
 		{
-			for (PASSEMBLY_PREOP PreOp = T->PreAssemblyOperations; PreOp; PreOp = PreOp->Next)
-			{
-				if (!PreOp->Operation(T, PreOp->Context))
-				{
-					MLog("Pre assembly operation failed.\n");
-					Free(Buffer);
-					return NULL;
-				}
-			}
 
 			RtlCopyMemory(CopyTarget, T->RawInstData, T->RawInstSize);
 

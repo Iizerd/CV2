@@ -42,6 +42,7 @@ PUCHAR XedEncodeInstructions(XED_ENCODER_INSTRUCTION* InstList, UINT InstCount, 
 	}
 
 	RtlCopyMemory(RetBuffer, EncodeBuffer, TotalSize);
+	Free(EncodeBuffer);
 	*OutSize = TotalSize;
 	return RetBuffer;
 }

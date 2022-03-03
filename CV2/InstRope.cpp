@@ -74,14 +74,6 @@ VOID _IrBuildBlockFromBack(PINST_LINK Inst, PINST_BLOCK Block)
 	}
 }
 
-//VOID _IrFreeBlock(PINST_BLOCK Block)
-//{
-//	_IrForEachLink(Block, [](PINST_LINK Link)
-//		{
-//			IrFreeLink(Link);
-//		});
-//}
-
 VOID _IrPutLinkBack(PINST_BLOCK Block, PINST_LINK Inst)
 {
 	if (!((UINT64)Block->Front | (UINT64)Block->Back))
@@ -216,6 +208,11 @@ VOID _IrReplaceBlock(PINST_BLOCK ParentBlock, PINST_LINK Start, PINST_LINK End, 
 VOID _IrReplaceBlock2(PINST_BLOCK ParentBlock, PINST_BLOCK Block1, PINST_BLOCK Block2)
 {
 	return _IrReplaceBlock(ParentBlock, Block1->Front, Block1->Back, Block2);
+}
+
+VOID _IrReplaceLinkWithBlock(PINST_BLOCK ParentBlock, PINST_LINK Link, PINST_BLOCK Block)
+{
+	return _IrReplaceBlock(ParentBlock, Link, Link, Block);
 }
 
 BOOLEAN _IrGetMinId(PINST_BLOCK Block, PINT32 Id)

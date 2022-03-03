@@ -81,7 +81,10 @@ BOOLEAN NrCreateLabels(PNATIVE_BLOCK Block);
 
 BOOLEAN NrCalcRelativeJumpDisp(PNATIVE_LINK Link, PINT32 DeltaOut);
 
-BOOL NrFixRelativeJumps(PNATIVE_BLOCK Block);
+//It is very slow to promote all jumps one by one as NrAssemble will do if nessicary. Promoting them all now is very fast. This is because you have to iterate through all previous jumps after u change one of them.
+BOOLEAN NrPromoteAllRelativeJumpsTo32BitDisplacement(PNATIVE_BLOCK Block);
+
+BOOLEAN NrFixRelativeJumps(PNATIVE_BLOCK Block);
 
 BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength);
 
