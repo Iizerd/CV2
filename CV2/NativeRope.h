@@ -33,8 +33,8 @@ typedef struct _NATIVE_LINK
 //-----------END OF HEADER-----------
 	PASSEMBLY_PREOP		PreAssemblyOperations;
 	PASSEMBLY_POSTOP	PostAssemblyOperations;
-	PVOID				RawInstData;
-	UINT				RawInstSize;
+	PVOID				RawData;
+	UINT				RawDataSize;
 	XED_DECODED_INST	DecodedInst;
 }NATIVE_LINK, *PNATIVE_LINK;
 
@@ -75,16 +75,20 @@ BOOLEAN NrDeepCopyBlock2(PNATIVE_BLOCK Dest, PNATIVE_BLOCK Source);
 
 UINT NrCalcBlockSize(PNATIVE_BLOCK Block);
 
-PNATIVE_LINK NcValidateJump(PNATIVE_LINK Jmp, INT32 Delta);
+PNATIVE_LINK NcValidateDelta(PNATIVE_LINK Start, INT32 Delta, PINT32 LeftOver);
 
-BOOLEAN NrCreateLabels(PNATIVE_BLOCK Block);
+BOOLEAN NrHandleRelativeJumps(PNATIVE_BLOCK Block);
 
-BOOLEAN NrCalcRelativeJumpDisp(PNATIVE_LINK Link, PINT32 DeltaOut);
+BOOLEAN NrCalcRipDelta(PNATIVE_LINK Link, PINT32 DeltaOut);
 
 //It is very slow to promote all jumps one by one as NrAssemble will do if nessicary. Promoting them all now is very fast. This is because you have to iterate through all previous jumps after u change one of them.
 BOOLEAN NrPromoteAllRelativeJumpsTo32BitDisplacement(PNATIVE_BLOCK Block);
 
 BOOLEAN NrFixRelativeJumps(PNATIVE_BLOCK Block);
+
+BOOLEAN NrIsRipRelativeInstruction(PNATIVE_LINK Link, PINT32 Delta);
+
+BOOLEAN NrHandleRipRelativeInstructions(PNATIVE_BLOCK Block);
 
 BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength);
 

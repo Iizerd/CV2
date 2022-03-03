@@ -2,7 +2,7 @@
 
 BOOLEAN BmRandomizeJunk(PNATIVE_LINK Link, PUCHAR RawData, PVOID)
 {
-	for (UINT i = 0; i < Link->RawInstSize; i++)
+	for (UINT i = 0; i < Link->RawDataSize; i++)
 		RawData[i] = rand() % 255;
 }
 
@@ -35,10 +35,10 @@ BOOLEAN BmGenerateRetReplacement(PNATIVE_BLOCK Block, UINT JunkSize)
 		return FALSE;
 	}
 
-	JunkLink->RawInstSize = JunkSize + 8;
-	JunkLink->RawInstData = Allocate(JunkSize + 8);
+	JunkLink->RawDataSize = JunkSize + 8;
+	JunkLink->RawData = Allocate(JunkSize + 8);
 	JunkLink->LinkData.Flags |= CODE_FLAG_IS_RAW_DATA;
-	if (!JunkLink->RawInstData)
+	if (!JunkLink->RawData)
 	{
 		NrFreeLink(JunkLink);
 		NrFreeBlock(Block);

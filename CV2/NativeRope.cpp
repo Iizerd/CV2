@@ -3,8 +3,8 @@
 
 VOID NrFreeLink(PNATIVE_LINK Link)
 {
-	if (Link->RawInstData)
-		Free(Link->RawInstData);
+	if (Link->RawData)
+		Free(Link->RawData);
 	for (PASSEMBLY_PREOP PreOp = Link->PreAssemblyOperations; PreOp;)
 	{
 		PASSEMBLY_PREOP NextOp = PreOp->Next;
@@ -149,18 +149,18 @@ BOOLEAN NrDeepCopyLink(PNATIVE_LINK Dest, PNATIVE_LINK Source)
 	if (Source->LinkData.Flags & CODE_FLAG_IS_INST)
 	{
 		*(PVOID*)&Dest->LinkData = *(PVOID*)&Source->LinkData;
-		Dest->RawInstSize = Source->RawInstSize;
-		Dest->RawInstData = Allocate(Source->RawInstSize);
-		if (!Dest->RawInstData)
+		Dest->RawDataSize = Source->RawDataSize;
+		Dest->RawData = Allocate(Source->RawDataSize);
+		if (!Dest->RawData)
 			return FALSE;
-		RtlCopyMemory(Dest->RawInstData, Source->RawInstData, Source->RawInstSize);
+		RtlCopyMemory(Dest->RawData, Source->RawData, Source->RawDataSize);
 
 		XedDecodedInstZeroSetMode(&Dest->DecodedInst, &XedGlobalMachineState);
-		XED_ERROR_ENUM XedError = XedDecode(&Dest->DecodedInst, (CONST PUCHAR)Dest->RawInstData, Dest->RawInstSize);
+		XED_ERROR_ENUM XedError = XedDecode(&Dest->DecodedInst, (CONST PUCHAR)Dest->RawData, Dest->RawDataSize);
 		if (XedError != XED_ERROR_NONE)
 		{
 			MLog("Failed to decode in NrDeepCopy. Error: %s\n", XedErrorEnumToString(XedError));
-			Free(Dest->RawInstData);
+			Free(Dest->RawData);
 			return FALSE;
 		}
 	}
@@ -198,53 +198,54 @@ UINT NrCalcBlockSize(PNATIVE_BLOCK Block)
 	UINT Total = 0;
 	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
-		if (T->LinkData.Flags & (CODE_FLAG_IS_INST | CODE_FLAG_IS_RAW_DATA))
-			Total += T->RawInstSize;
+		if (T->LinkData.Flags & CODE_FLAG_OCCUPIES_SPACE)
+			Total += T->RawDataSize;
 	}
 	return Total;
 }
 
-PNATIVE_LINK NcValidateJump(PNATIVE_LINK Jmp, INT32 Delta)
+PNATIVE_LINK NcValidateDelta(PNATIVE_LINK Start, INT32 Delta, PINT32 LeftOver)
 {
 	PNATIVE_LINK T;
 	if (Delta > 0)
 	{
-		T = Jmp->Next;
+		T = Start->Next;
 		while (Delta > 0 && T)
 		{
-			if (T->LinkData.Flags & CODE_FLAG_IS_INST)
-				Delta -= XedDecodedInstGetLength(&T->DecodedInst);
+			if (T->LinkData.Flags & CODE_FLAG_OCCUPIES_SPACE)
+				Delta -= T->RawDataSize;
 			T = T->Next;
 		}
-		if (Delta != 0 || !T)
-			return NULL;
-		while (T && !(T->LinkData.Flags & CODE_FLAG_IS_INST))
+		if (!T) return NULL;
+		while (T && !(T->LinkData.Flags & CODE_FLAG_OCCUPIES_SPACE))
 			T = T->Next;
+		*LeftOver = Delta;
 		return T;
 	}
 	else if (Delta < 0)
 	{
-		T = Jmp;
+		T = Start;
 		while (T)
 		{
-			if (T->LinkData.Flags & CODE_FLAG_IS_INST)
+			if (T->LinkData.Flags & (CODE_FLAG_OCCUPIES_SPACE))
 			{
-				Delta += XedDecodedInstGetLength(&T->DecodedInst);
+				Delta += T->RawDataSize;
 				if (Delta >= 0)
 					break;
 			}
 			T = T->Prev;
 		}
-		if (Delta != 0 || !T)
-			return NULL;
-		while (T && !(T->LinkData.Flags & CODE_FLAG_IS_INST))
+		if (!T) return NULL;
+		while (T && !(T->LinkData.Flags & CODE_FLAG_OCCUPIES_SPACE))
 			T = T->Next;
+		*LeftOver = Delta;
 		return T;
 	}
-	return Jmp->Next;
+	*LeftOver = 0;
+	return Start->Next;
 }
 
-BOOLEAN NrCreateLabels(PNATIVE_BLOCK Block)
+BOOLEAN NrHandleRelativeJumps(PNATIVE_BLOCK Block)
 {
 	INT32 CurrentLabelId = 0;
 	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
@@ -270,10 +271,11 @@ BOOLEAN NrCreateLabels(PNATIVE_BLOCK Block)
 			continue;
 		
 		INT32 BranchDisplacement = XedDecodedInstGetBranchDisplacement(&T->DecodedInst);
-		PNATIVE_LINK TargetLink = NcValidateJump(T, BranchDisplacement);
-		if (!TargetLink)
+		INT32 LeftOver = 0;
+		PNATIVE_LINK TargetLink = NcValidateDelta(T, BranchDisplacement, &LeftOver);
+		if (!TargetLink || LeftOver)
 		{
-			MLog("Failed to validate jump. [%s][%d]\n", XedCategoryEnumToString(Category), BranchDisplacement);
+			MLog("Failed to validate jump. [%s][%d][%d]\n", XedCategoryEnumToString(Category), BranchDisplacement, LeftOver);
 			return FALSE;
 		}
 
@@ -292,7 +294,7 @@ BOOLEAN NrCreateLabels(PNATIVE_BLOCK Block)
 	}
 }
 
-BOOLEAN NrCalcRelativeJumpDisp(PNATIVE_LINK Link, PINT32 DeltaOut)
+BOOLEAN NrCalcRipDelta(PNATIVE_LINK Link, PINT32 DeltaOut)
 {
 	INT32 Delta = 0;
 	for (PNATIVE_LINK T = Link; T; T = T->Prev)
@@ -306,7 +308,7 @@ BOOLEAN NrCalcRelativeJumpDisp(PNATIVE_LINK Link, PINT32 DeltaOut)
 			}
 			continue;
 		}
-		Delta -= T->RawInstSize;
+		Delta -= T->RawDataSize;
 	}
 
 	Delta = 0;
@@ -321,7 +323,7 @@ BOOLEAN NrCalcRelativeJumpDisp(PNATIVE_LINK Link, PINT32 DeltaOut)
 			}
 			continue;
 		}
-		Delta += T->RawInstSize;
+		Delta += T->RawDataSize;
 	}
 	return FALSE;
 }
@@ -348,9 +350,9 @@ BOOLEAN NrPromoteAllRelativeJumpsTo32BitDisplacement(PNATIVE_BLOCK Block)
 			if (XedError != XED_ERROR_NONE)
 				return FALSE;
 
-			Free(T->RawInstData);
-			T->RawInstData = AssembledBranch;
-			T->RawInstSize = BranchInstSize;
+			Free(T->RawData);
+			T->RawData = AssembledBranch;
+			T->RawDataSize = BranchInstSize;
 		}
 	}
 	return TRUE;
@@ -362,14 +364,14 @@ BOOLEAN NrFixRelativeJumps(PNATIVE_BLOCK Block)
 	{
 		if (T->LinkData.Flags & CODE_FLAG_IS_REL_JUMP)
 		{
-			if (!T->RawInstData)
+			if (!T->RawData)
 			{
 				MLog("Relative jump instruction has no raw data!\n");
 				return FALSE;
 			}
 
 			INT32 BranchDisp = 0;
-			if (!NrCalcRelativeJumpDisp(T, &BranchDisp))
+			if (!NrCalcRipDelta(T, &BranchDisp))
 			{
 				MLog("Could not calculate relative jump displacement.\n");
 				return FALSE;
@@ -394,9 +396,9 @@ BOOLEAN NrFixRelativeJumps(PNATIVE_BLOCK Block)
 				if (XedError != XED_ERROR_NONE) //If xed can't decode something it just encoded.
 					return FALSE;
 
-				Free(T->RawInstData);
-				T->RawInstData = AssembledBranch;
-				T->RawInstSize = BranchInstSize;
+				Free(T->RawData);
+				T->RawData = AssembledBranch;
+				T->RawDataSize = BranchInstSize;
 
 				T = Block->Front;
 				continue;
@@ -407,15 +409,54 @@ BOOLEAN NrFixRelativeJumps(PNATIVE_BLOCK Block)
 				UINT BranchDispWidth = XedDecodedInstGetBranchDisplacementWidth(&T->DecodedInst);
 				switch (BranchDispWidth)
 				{
-				case 1: *(PINT8)&(((PUCHAR)T->RawInstData)[T->RawInstSize - BranchDispWidth]) = (INT8)BranchDisp; break;
-				case 2: *(PINT16)&(((PUCHAR)T->RawInstData)[T->RawInstSize - BranchDispWidth]) = (INT16)BranchDisp; break;
-				case 4: *(PINT32)&(((PUCHAR)T->RawInstData)[T->RawInstSize - BranchDispWidth]) = (INT32)BranchDisp; break;
+				case 1: *(PINT8)&(((PUCHAR)T->RawData)[T->RawDataSize - BranchDispWidth]) = (INT8)BranchDisp; break;
+				case 2: *(PINT16)&(((PUCHAR)T->RawData)[T->RawDataSize - BranchDispWidth]) = (INT16)BranchDisp; break;
+				case 4: *(PINT32)&(((PUCHAR)T->RawData)[T->RawDataSize - BranchDispWidth]) = (INT32)BranchDisp; break;
 				}
 			}
 		}
 
 
 		T = T->Next;
+	}
+	return TRUE;
+}
+
+BOOLEAN NrIsRipRelativeInstruction(PNATIVE_LINK Link, PINT32 Delta)
+{
+	UINT OperandCount = XedDecodedInstNumOperands(&Link->DecodedInst);
+	if (OperandCount == 0)
+		return FALSE;
+
+	CONST XED_INST* Inst = XedDecodedInstInst(&Link->DecodedInst);
+	for (UINT i = 0; i < OperandCount; i++)
+	{
+		CONST XED_OPERAND* Operand = XedInstOperand(Inst, i);
+		XED_OPERAND_ENUM OperandName = XedOperandName(Operand);
+		if (OperandName != XED_OPERAND_MEM0 && OperandName != XED_OPERAND_AGEN)
+			continue;
+
+		if (XED_REG_RIP == XedDecodedInstGetBaseReg(&Link->DecodedInst, 0))
+		{
+			*Delta = XedDecodedInstGetMemoryDisplacement(&Link->DecodedInst, 0);
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+BOOLEAN NrHandleRipRelativeInstructions(PNATIVE_BLOCK Block)
+{
+	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T= T->Next)
+	{
+		if (T->LinkData.Flags & CODE_FLAG_IS_INST)
+		{
+			INT32 Delta = 0;
+			if (NrIsRipRelativeInstruction(T, &Delta))
+			{
+				printf("Found rip rel instruction, %d\n", Delta);
+			}
+		}
 	}
 	return TRUE;
 }
@@ -449,24 +490,24 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 			return FALSE;
 		}
 		
-		UINT RawInstSize = XedDecodedInstGetLength(&Link->DecodedInst);
-		PVOID RawInstData = Allocate(RawInstSize);
-		if (!RawInstData)
+		UINT RawDataSize = XedDecodedInstGetLength(&Link->DecodedInst);
+		PVOID RawData = Allocate(RawDataSize);
+		if (!RawData)
 		{
-			MLog("Could not allocate space for RawInstData in NrDissassemble\n");
+			MLog("Could not allocate space for RawData in NrDissassemble\n");
 			NrFreeLink(Link);
 			NrFreeBlock(Block);
 			return FALSE;
 		}
-		RtlCopyMemory(RawInstData, CodePointer, RawInstSize);
-		Link->RawInstData = RawInstData;
-		Link->RawInstSize = RawInstSize;
+		RtlCopyMemory(RawData, CodePointer, RawDataSize);
+		Link->RawData = RawData;
+		Link->RawDataSize = RawDataSize;
 
 		IrPutLinkBack(Block, Link);
-		CodePointer += RawInstSize;
+		CodePointer += RawDataSize;
 	}
 
-	if (!NrCreateLabels(Block))
+	if (!NrHandleRelativeJumps(Block))
 	{
 		MLog("Failed to create labels.\n");
 		return FALSE;
@@ -514,10 +555,10 @@ PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 	PUCHAR CopyTarget = Buffer;
 	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
-		if (T->LinkData.Flags & (CODE_FLAG_IS_INST | CODE_FLAG_IS_RAW_DATA))
+		if (T->LinkData.Flags & CODE_FLAG_OCCUPIES_SPACE)
 		{
 
-			RtlCopyMemory(CopyTarget, T->RawInstData, T->RawInstSize);
+			RtlCopyMemory(CopyTarget, T->RawData, T->RawDataSize);
 
 			for (PASSEMBLY_POSTOP PostOp = T->PostAssemblyOperations; PostOp; PostOp = PostOp->Next)
 			{
@@ -529,7 +570,7 @@ PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 				}
 			}
 
-			CopyTarget += T->RawInstSize;
+			CopyTarget += T->RawDataSize;
 		}
 	}
 	*AssembledSize = TotalSize;
