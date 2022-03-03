@@ -13,6 +13,14 @@ int main()
 	NATIVE_BLOCK Block;
 	Block.Back = Block.Front = NULL;
 	NrDissasemble(&Block, TestArray, sizeof(TestArray));
+
+	UINT AsmSize = 0;
+	PVOID Asm = NrAssemble(&Block, &AsmSize);
+
+	for (ULONG i = 0; i < AsmSize; i++)
+		printf("%X ", ((PUCHAR)Asm)[i]);
+	printf("\n");
+
 	//NrDebugPrintIClass(&Block);
 	PFUNCTION_BLOCK FbTree = FbCreateTree(&Block);
 	FbPrintNotTakenPath(FbTree);

@@ -332,7 +332,7 @@ BOOL NrFixRelativeJumps(PNATIVE_BLOCK Block)
 	{
 		if (T->LinkData.Flags & CODE_FLAG_IS_REL_JUMP)
 		{
-			if (T->RawInstData)
+			if (!T->RawInstData)
 			{
 				MLog("Relative jump instruction has no raw data!\n");
 				return FALSE;
@@ -428,16 +428,16 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 
 PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 {
+	if (!NrFixRelativeJumps(Block))
+	{
+		MLog("Failed to fix all relative jumps before assembling.\n");
+		return NULL;
+	}
+
 	UINT TotalSize = NrCalcBlockSize(Block);
 	if (!Block->Front || !Block->Back || !AssembledSize || !TotalSize)
 	{
 		MLog("Invalid block to assemble.\n");
-		return NULL;
-	}
-
-	if (!NrFixRelativeJumps(Block))
-	{
-		MLog("Failed to fix all relative jumps before assembling.\n");
 		return NULL;
 	}
 
