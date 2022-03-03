@@ -17,8 +17,6 @@
 #define AllocateS(StructType) (StructType*)calloc(1, sizeof(StructType))
 #define Free free
 
-
-
 #define INLINE inline
 #define STDSTRING std::string
 #define STDVECTOR std::vector
@@ -27,7 +25,17 @@
 #define StdFind std::find
 #define STATIC_ASSERT static_assert
 
-#define Min min
-#define Max max
+#define MinVal min
+#define MaxVal max
+
+//Maybe make a random class if i need more numbers.
+template<typename T>
+INLINE T RndGetRandomNum(T Min, T Max)
+{
+	std::random_device RandomDevice;
+	std::default_random_engine Generator(RandomDevice());
+	std::uniform_int_distribution<T> Distribution(Min, Max);
+	return Distribution(Generator);
+}
 
 #endif

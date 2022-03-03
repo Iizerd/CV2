@@ -29,6 +29,9 @@
     <ClCompile Include="Jit.cpp">
       <Filter>Obfuscator\Techniques</Filter>
     </ClCompile>
+    <ClCompile Include="RandomAssembly.cpp">
+      <Filter>Obfuscator</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Windas.h">
@@ -63,6 +66,9 @@
     </ClInclude>
     <ClInclude Include="Jit.h">
       <Filter>Obfuscator\Techniques</Filter>
+    </ClInclude>
+    <ClInclude Include="RandomAssembly.h">
+      <Filter>Obfuscator</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

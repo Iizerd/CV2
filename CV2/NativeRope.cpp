@@ -46,6 +46,7 @@ VOID NrZeroLink(PNATIVE_LINK Link)
 
 VOID NrInitForInst(PNATIVE_LINK Link)
 {
+	
 	RtlSecureZeroMemory(Link, sizeof(NATIVE_LINK));
 	XedDecodedInstZeroSetMode(&Link->DecodedInst, &XedGlobalMachineState);
 	Link->LinkData.Flags |= CODE_FLAG_IS_INST;
@@ -204,7 +205,7 @@ UINT NrCalcBlockSize(PNATIVE_BLOCK Block)
 	return Total;
 }
 
-PNATIVE_LINK NcValidateDelta(PNATIVE_LINK Start, INT32 Delta, PINT32 LeftOver)
+PNATIVE_LINK NrValidateDelta(PNATIVE_LINK Start, INT32 Delta, PINT32 LeftOver)
 {
 	PNATIVE_LINK T;
 	if (Delta > 0)
@@ -243,55 +244,6 @@ PNATIVE_LINK NcValidateDelta(PNATIVE_LINK Start, INT32 Delta, PINT32 LeftOver)
 	}
 	*LeftOver = 0;
 	return Start->Next;
-}
-
-BOOLEAN NrHandleRelativeJumps(PNATIVE_BLOCK Block)
-{
-	INT32 CurrentLabelId = 0;
-	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
-	{
-		if (!(T->LinkData.Flags & CODE_FLAG_IS_INST))
-			continue;
-
-		UINT OperandCount = XedDecodedInstNumOperands(&T->DecodedInst);
-		if (OperandCount < 1)
-			continue;
-
-		XED_CATEGORY_ENUM Category = XedDecodedInstGetCategory(&T->DecodedInst);
-		if (Category != XED_CATEGORY_COND_BR && Category != XED_CATEGORY_UNCOND_BR)
-			continue;
-
-		CONST XED_INST* Inst = XedDecodedInstInst(&T->DecodedInst);
-		CONST XED_OPERAND* Operand = XedInstOperand(Inst, 0);
-		if (!Operand)
-			continue;
-
-		XED_OPERAND_TYPE_ENUM OperandType = XedOperandType(Operand);
-		if (OperandType != XED_OPERAND_TYPE_IMM && OperandType != XED_OPERAND_TYPE_IMM_CONST)
-			continue;
-		
-		INT32 BranchDisplacement = XedDecodedInstGetBranchDisplacement(&T->DecodedInst);
-		INT32 LeftOver = 0;
-		PNATIVE_LINK TargetLink = NcValidateDelta(T, BranchDisplacement, &LeftOver);
-		if (!TargetLink || LeftOver)
-		{
-			MLog("Failed to validate jump. [%s][%d][%d]\n", XedCategoryEnumToString(Category), BranchDisplacement, LeftOver);
-			return FALSE;
-		}
-
-		if (TargetLink->Prev && (TargetLink->Prev->LinkData.Flags & CODE_FLAG_IS_LABEL))
-			T->LinkData.Id = TargetLink->Prev->LinkData.Id;
-		else
-		{
-			PNATIVE_LINK LabelLink = NrAllocateLink();
-			NrInitForLabel(LabelLink, CurrentLabelId, NULL, NULL);
-			IrInsertLinkBefore(Block, TargetLink, LabelLink);
-			T->LinkData.Id = CurrentLabelId;
-			++CurrentLabelId;
-		}
-
-		T->LinkData.Flags |= (CODE_FLAG_IS_REL_JUMP | CODE_FLAG_USES_LABEL);
-	}
 }
 
 BOOLEAN NrCalcRipDelta(PNATIVE_LINK Link, PINT32 DeltaOut)
@@ -358,68 +310,110 @@ BOOLEAN NrPromoteAllRelativeJumpsTo32BitDisplacement(PNATIVE_BLOCK Block)
 	return TRUE;
 }
 
-BOOLEAN NrFixRelativeJumps(PNATIVE_BLOCK Block)
+PREOP_STATUS NrRelativeJumpPreOp(PNATIVE_LINK Link, PVOID Context)
 {
-	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next;)
+	//MLog("Relative Jump PreOp: %s %d\n", XedIClassEnumToString(XedDecodedInstGetIClass(&Link->DecodedInst)), (INT64)Context);
+	//Context is the left over amount calculated from NrValidateDelta, so it must be added to BranchDisp
+	if (!Link->RawData)
 	{
-		if (T->LinkData.Flags & CODE_FLAG_IS_REL_JUMP)
+		MLog("Relative jump instruction has no raw data!\n");
+		return PREOP_CRITICAL_ERROR;
+	}
+
+	INT32 BranchDisp = 0;
+	if (!NrCalcRipDelta(Link, &BranchDisp))
+	{
+		MLog("Could not calculate relative jump displacement.\n");
+		return PREOP_CRITICAL_ERROR;
+	}
+
+	BranchDisp += (INT64)Context;
+
+	//If it takes more bits than available to represent current displacement
+	if (log2(abs(BranchDisp)) + 1 > XedDecodedInstGetBranchDisplacementWidthBits(&Link->DecodedInst))
+	{
+		UINT BranchInstSize = 0;
+		XED_ICLASS_ENUM IClass = XedDecodedInstGetIClass(&Link->DecodedInst);
+		XED_ENCODER_INSTRUCTION RawBranchInst;
+		XedInst1(&RawBranchInst, XedGlobalMachineState, IClass, 32, XedRelBr(BranchDisp, 32));
+		PUCHAR AssembledBranch = XedEncodeInstructions(&RawBranchInst, 1, &BranchInstSize);
+		if (!AssembledBranch || !BranchInstSize)
 		{
-			if (!T->RawData)
-			{
-				MLog("Relative jump instruction has no raw data!\n");
-				return FALSE;
-			}
-
-			INT32 BranchDisp = 0;
-			if (!NrCalcRipDelta(T, &BranchDisp))
-			{
-				MLog("Could not calculate relative jump displacement.\n");
-				return FALSE;
-			}
-
-			//If it takes more bits than available to represent current displacement
-			if (log2(abs(BranchDisp)) + 1 > XedDecodedInstGetBranchDisplacementWidthBits(&T->DecodedInst))
-			{
-				UINT BranchInstSize = 0;
-				XED_ICLASS_ENUM IClass = XedDecodedInstGetIClass(&T->DecodedInst);
-				XED_ENCODER_INSTRUCTION RawBranchInst;
-				XedInst1(&RawBranchInst, XedGlobalMachineState, IClass, 32, XedRelBr(BranchDisp, 32));
-				PUCHAR AssembledBranch = XedEncodeInstructions(&RawBranchInst, 1, &BranchInstSize);
-				if (!AssembledBranch || !BranchInstSize)
-				{
-					MLog("Could not assemble new relative jump. [%s][%d]\n", XedIClassEnumToString(IClass), BranchDisp);
-					return FALSE;
-				}
-
-				XedDecodedInstZeroSetMode(&T->DecodedInst, &XedGlobalMachineState);
-				XED_ERROR_ENUM XedError = XedDecode(&T->DecodedInst, AssembledBranch, BranchInstSize);
-				if (XedError != XED_ERROR_NONE) //If xed can't decode something it just encoded.
-					return FALSE;
-
-				Free(T->RawData);
-				T->RawData = AssembledBranch;
-				T->RawDataSize = BranchInstSize;
-
-				T = Block->Front;
-				continue;
-			}
-			else
-			{
-				//A bit hacky ya? Displacement is always going to be the last bits of the jump.
-				UINT BranchDispWidth = XedDecodedInstGetBranchDisplacementWidth(&T->DecodedInst);
-				switch (BranchDispWidth)
-				{
-				case 1: *(PINT8)&(((PUCHAR)T->RawData)[T->RawDataSize - BranchDispWidth]) = (INT8)BranchDisp; break;
-				case 2: *(PINT16)&(((PUCHAR)T->RawData)[T->RawDataSize - BranchDispWidth]) = (INT16)BranchDisp; break;
-				case 4: *(PINT32)&(((PUCHAR)T->RawData)[T->RawDataSize - BranchDispWidth]) = (INT32)BranchDisp; break;
-				}
-			}
+			MLog("Could not assemble new relative jump. [%s][%d]\n", XedIClassEnumToString(IClass), BranchDisp);
+			return PREOP_CRITICAL_ERROR;
 		}
 
+		XedDecodedInstZeroSetMode(&Link->DecodedInst, &XedGlobalMachineState);
+		XED_ERROR_ENUM XedError = XedDecode(&Link->DecodedInst, AssembledBranch, BranchInstSize);
+		if (XedError != XED_ERROR_NONE) //If xed can't decode something it just encoded.
+			return PREOP_CRITICAL_ERROR;
 
-		T = T->Next;
+		Free(Link->RawData);
+		Link->RawData = AssembledBranch;
+		Link->RawDataSize = BranchInstSize;
+		return PREOP_RESTART;
 	}
-	return TRUE;
+
+	//A bit hacky ya? Displacement is always going to be the last bits of the jump.
+	UINT BranchDispWidth = XedDecodedInstGetBranchDisplacementWidth(&Link->DecodedInst);
+	switch (BranchDispWidth)
+	{
+	case 1: *(PINT8) & (((PUCHAR)Link->RawData)[Link->RawDataSize - BranchDispWidth]) = (INT8)BranchDisp; break;
+	case 2: *(PINT16) & (((PUCHAR)Link->RawData)[Link->RawDataSize - BranchDispWidth]) = (INT16)BranchDisp; break;
+	case 4: *(PINT32) & (((PUCHAR)Link->RawData)[Link->RawDataSize - BranchDispWidth]) = (INT32)BranchDisp; break;
+	}
+
+	return PREOP_SUCCESS;
+}
+
+BOOLEAN NrHandleRelativeJumps(PNATIVE_BLOCK Block)
+{
+	INT32 CurrentLabelId = 0;
+	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
+	{
+		if (!(T->LinkData.Flags & CODE_FLAG_IS_INST))
+			continue;
+
+		UINT OperandCount = XedDecodedInstNumOperands(&T->DecodedInst);
+		if (OperandCount < 1)
+			continue;
+
+		XED_CATEGORY_ENUM Category = XedDecodedInstGetCategory(&T->DecodedInst);
+		if (Category != XED_CATEGORY_COND_BR && Category != XED_CATEGORY_UNCOND_BR)
+			continue;
+
+		CONST XED_INST* Inst = XedDecodedInstInst(&T->DecodedInst);
+		CONST XED_OPERAND* Operand = XedInstOperand(Inst, 0);
+		if (!Operand)
+			continue;
+
+		XED_OPERAND_TYPE_ENUM OperandType = XedOperandType(Operand);
+		if (OperandType != XED_OPERAND_TYPE_IMM && OperandType != XED_OPERAND_TYPE_IMM_CONST)
+			continue;
+
+		INT32 BranchDisplacement = XedDecodedInstGetBranchDisplacement(&T->DecodedInst);
+		INT32 LeftOver = 0;
+		PNATIVE_LINK TargetLink = NrValidateDelta(T, BranchDisplacement, &LeftOver);
+		if (!TargetLink)
+		{
+			MLog("Failed to validate jump. [%s][%d]\n", XedCategoryEnumToString(Category), BranchDisplacement);
+			return FALSE;
+		}
+
+		if (TargetLink->Prev && (TargetLink->Prev->LinkData.Flags & CODE_FLAG_IS_LABEL))
+			T->LinkData.Id = TargetLink->Prev->LinkData.Id;
+		else
+		{
+			PNATIVE_LINK LabelLink = NrAllocateLink();
+			NrInitForLabel(LabelLink, CurrentLabelId, NULL, NULL);
+			IrInsertLinkBefore(Block, TargetLink, LabelLink);
+			T->LinkData.Id = CurrentLabelId;
+			++CurrentLabelId;
+		}
+
+		NrAddPreAssemblyOperation(T, NrRelativeJumpPreOp, (PVOID)(INT64)LeftOver, FALSE);
+		T->LinkData.Flags |= (CODE_FLAG_IS_REL_JUMP | CODE_FLAG_USES_LABEL);
+	}
 }
 
 BOOLEAN NrIsRipRelativeInstruction(PNATIVE_LINK Link, PINT32 Delta)
@@ -431,8 +425,7 @@ BOOLEAN NrIsRipRelativeInstruction(PNATIVE_LINK Link, PINT32 Delta)
 	CONST XED_INST* Inst = XedDecodedInstInst(&Link->DecodedInst);
 	for (UINT i = 0; i < OperandCount; i++)
 	{
-		CONST XED_OPERAND* Operand = XedInstOperand(Inst, i);
-		XED_OPERAND_ENUM OperandName = XedOperandName(Operand);
+		XED_OPERAND_ENUM OperandName = XedOperandName(XedInstOperand(Inst, i));
 		if (OperandName != XED_OPERAND_MEM0 && OperandName != XED_OPERAND_AGEN)
 			continue;
 
@@ -478,7 +471,7 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 			return FALSE;
 		}
 		NrInitForInst(Link);
-		UINT PossibleSize = Min(15, CodeEnd - CodePointer);
+		UINT PossibleSize = MinVal(15, CodeEnd - CodePointer);
 
 		XedDecodedInstZeroSetMode(&Link->DecodedInst, &XedGlobalMachineState);
 		XED_ERROR_ENUM XedError = XedDecode(&Link->DecodedInst, CodePointer, PossibleSize);
@@ -518,25 +511,36 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 
 PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 {
-	//Do all pre assembly operations(which COULD change the size, thats why this is here)
-	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
+	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next;)
 	{
 		for (PASSEMBLY_PREOP PreOp = T->PreAssemblyOperations; PreOp; PreOp = PreOp->Next)
 		{
-			if (!PreOp->Operation(T, PreOp->Context))
+			PREOP_STATUS Status = PreOp->Operation(T, PreOp->Context);
+			switch (Status)
 			{
-				MLog("Pre assembly operation failed.\n");
+			case PREOP_SUCCESS:
+				break;
+			case PREOP_RESTART:
+				T = Block->Front;
+				goto NextLinkLabel;
+			default:
+				__fallthrough;
+			case PREOP_CRITICAL_ERROR:
+				MLog("Critical error in assembly pre-operation: %u\n", Status);
 				return NULL;
 			}
 		}
+		T = T->Next;
+	NextLinkLabel:
+		continue;
 	}
 
-	//Fix up all jump deltas now that everything is where its going to be for final assembly.
-	if (!NrFixRelativeJumps(Block))
-	{
-		MLog("Failed to fix all relative jumps before assembling.\n");
-		return NULL;
-	}
+	////Fix up all jump deltas now that everything is where its going to be for final assembly.
+	//if (!NrFixRelativeJumps(Block))
+	//{
+	//	MLog("Failed to fix all relative jumps before assembling.\n");
+	//	return NULL;
+	//}
 
 	UINT TotalSize = NrCalcBlockSize(Block);
 	if (!Block->Front || !Block->Back || !AssembledSize || !TotalSize)
@@ -562,9 +566,15 @@ PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 
 			for (PASSEMBLY_POSTOP PostOp = T->PostAssemblyOperations; PostOp; PostOp = PostOp->Next)
 			{
-				if (!PostOp->Operation(T, CopyTarget, PostOp->Context))
+				POSTOP_STATUS Status = PostOp->Operation(T, CopyTarget, PostOp->Context);
+				switch (Status)
 				{
-					MLog("Post assembly operation failed.\n");
+				case POSTOP_SUCCESS:
+					break;
+				default:
+					__fallthrough;
+				case POSTOP_CRITICAL_ERROR:
+					MLog("Critical error in assembly post-operation: %u\n", Status);
 					Free(Buffer);
 					return NULL;
 				}
@@ -624,3 +634,68 @@ BOOLEAN NrAreFlagsClobbered(PNATIVE_LINK Start, PNATIVE_LINK End)
 	return TRUE;
 }
 
+//BOOLEAN NrFixRelativeJumps(PNATIVE_BLOCK Block)
+//{
+//	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next;)
+//	{
+//		if (T->LinkData.Flags & CODE_FLAG_IS_REL_JUMP)
+//		{
+//			if (!T->RawData)
+//			{
+//				MLog("Relative jump instruction has no raw data!\n");
+//				return FALSE;
+//			}
+//
+//			INT32 BranchDisp = 0;
+//			if (!NrCalcRipDelta(T, &BranchDisp))
+//			{
+//				MLog("Could not calculate relative jump displacement.\n");
+//				return FALSE;
+//			}
+//
+//			//If it takes more bits than available to represent current displacement
+//			if (log2(abs(BranchDisp)) + 1 > XedDecodedInstGetBranchDisplacementWidthBits(&T->DecodedInst))
+//			{
+//				MLog("Cannot currently handle needing to resize relative jump displacement widths.\n");
+//				return FALSE;
+//				//UINT BranchInstSize = 0;
+//				//XED_ICLASS_ENUM IClass = XedDecodedInstGetIClass(&T->DecodedInst);
+//				//XED_ENCODER_INSTRUCTION RawBranchInst;
+//				//XedInst1(&RawBranchInst, XedGlobalMachineState, IClass, 32, XedRelBr(BranchDisp, 32));
+//				//PUCHAR AssembledBranch = XedEncodeInstructions(&RawBranchInst, 1, &BranchInstSize);
+//				//if (!AssembledBranch || !BranchInstSize)
+//				//{
+//				//	MLog("Could not assemble new relative jump. [%s][%d]\n", XedIClassEnumToString(IClass), BranchDisp);
+//				//	return FALSE;
+//				//}
+//
+//				//XedDecodedInstZeroSetMode(&T->DecodedInst, &XedGlobalMachineState);
+//				//XED_ERROR_ENUM XedError = XedDecode(&T->DecodedInst, AssembledBranch, BranchInstSize);
+//				//if (XedError != XED_ERROR_NONE) //If xed can't decode something it just encoded.
+//				//	return FALSE;
+//
+//				//Free(T->RawData);
+//				//T->RawData = AssembledBranch;
+//				//T->RawDataSize = BranchInstSize;
+//
+//				//T = Block->Front;
+//				//continue;
+//			}
+//			else
+//			{
+//				//A bit hacky ya? Displacement is always going to be the last bits of the jump.
+//				UINT BranchDispWidth = XedDecodedInstGetBranchDisplacementWidth(&T->DecodedInst);
+//				switch (BranchDispWidth)
+//				{
+//				case 1: *(PINT8)&(((PUCHAR)T->RawData)[T->RawDataSize - BranchDispWidth]) = (INT8)BranchDisp; break;
+//				case 2: *(PINT16)&(((PUCHAR)T->RawData)[T->RawDataSize - BranchDispWidth]) = (INT16)BranchDisp; break;
+//				case 4: *(PINT32)&(((PUCHAR)T->RawData)[T->RawDataSize - BranchDispWidth]) = (INT32)BranchDisp; break;
+//				}
+//			}
+//		}
+//
+//
+//		T = T->Next;
+//	}
+//	return TRUE;
+//}

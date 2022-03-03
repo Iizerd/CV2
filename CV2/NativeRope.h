@@ -4,12 +4,18 @@
 #include "InstRope.h"
 #include "XedWrap.h"
 
-#define CODE_FLAG_IS_REL_JUMP IrSpecificFlag(0)
-
 struct _NATIVE_LINK;
 
+#define CODE_FLAG_IS_REL_JUMP		IrSpecificFlag(0)
+#define CODE_FLAG_IS_RIP_RELATIVE	IrSpecificFlag(1)
 
-typedef BOOLEAN(*FnAssemblyPreOp)(_NATIVE_LINK* Link, PVOID Context);
+typedef UINT PREOP_STATUS;
+
+#define PREOP_SUCCESS			0	//Continue to next operation and further instructions
+#define PREOP_RESTART			1	//Go back to the first instruction and start again(most likely a displacement width changed). Try not to ever return this.
+#define PREOP_CRITICAL_ERROR	2	//Cancel assembly completely. Something bad happened
+
+typedef PREOP_STATUS(*FnAssemblyPreOp)(_NATIVE_LINK* Link, PVOID Context);
 typedef struct _ASSEMBLY_PREOP
 {
 	_ASSEMBLY_PREOP*	Next;
@@ -17,7 +23,13 @@ typedef struct _ASSEMBLY_PREOP
 	FnAssemblyPreOp		Operation;
 }ASSEMBLY_PREOP, * PASSEMBLY_PREOP;
 
-typedef BOOLEAN(*FnAssemblyPostOp)(_NATIVE_LINK* Link, PUCHAR RawData, PVOID Context);
+
+typedef UINT POSTOP_STATUS;
+
+#define POSTOP_SUCCESS			0	//Continue to next operation and further instructions
+#define POSTOP_CRITICAL_ERROR	1	//Cancel assembly completely
+
+typedef POSTOP_STATUS(*FnAssemblyPostOp)(_NATIVE_LINK* Link, PUCHAR RawData, PVOID Context);
 typedef struct _ASSEMBLY_POSTOP
 {
 	_ASSEMBLY_POSTOP*	Next;
@@ -75,7 +87,7 @@ BOOLEAN NrDeepCopyBlock2(PNATIVE_BLOCK Dest, PNATIVE_BLOCK Source);
 
 UINT NrCalcBlockSize(PNATIVE_BLOCK Block);
 
-PNATIVE_LINK NcValidateDelta(PNATIVE_LINK Start, INT32 Delta, PINT32 LeftOver);
+PNATIVE_LINK NrValidateDelta(PNATIVE_LINK Start, INT32 Delta, PINT32 LeftOver);
 
 BOOLEAN NrHandleRelativeJumps(PNATIVE_BLOCK Block);
 
@@ -92,6 +104,7 @@ BOOLEAN NrHandleRipRelativeInstructions(PNATIVE_BLOCK Block);
 
 BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength);
 
+//For now, you must ensure that all relative jump displacement widths are large enough. I dont know how to handle it if they are not.
 PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize);
 
 VOID NrDebugPrintIClass(PNATIVE_BLOCK Block);

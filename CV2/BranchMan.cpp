@@ -1,12 +1,6 @@
 #include "BranchMan.h"
 
-BOOLEAN BmRandomizeJunk(PNATIVE_LINK Link, PUCHAR RawData, PVOID)
-{
-	for (UINT i = 0; i < Link->RawDataSize; i++)
-		RawData[i] = rand() % 255;
-}
-
-BOOLEAN BmGenerateRetReplacement(PNATIVE_BLOCK Block, UINT JunkSize)
+BOOLEAN BmGenerateEmulateRet1(PNATIVE_BLOCK Block, UINT JunkSize)
 {
 	//-	POP [RIP + 6 + Delta]
 	//-	JMP [RIP + Delta]
@@ -57,19 +51,37 @@ BOOLEAN BmGenerateRetReplacement(PNATIVE_BLOCK Block, UINT JunkSize)
 	return TRUE;
 }
 
+BOOLEAN BmGenerateEmulateRet2(PNATIVE_BLOCK Block, UINT Junk)
+{
+	/*
+	*  - JMP Delta
+	*  - PUSH 0xC3
+	*/
+
+	//Generate the deadstore instruction(s) and save the delta in a variable.
+	if (Junk & DEADSTORE_METHOD_RANDOM)
+	{
+
+	}
+
+	//Generate the relative jump and put it before the deadstore in the block.
+
+
+}
+
 BOOLEAN BmGenerateRelJumpReplacement(PNATIVE_BLOCK Block, INT32 Displacement)
 {
 	/*
 	* Relative Jump Remover :
-	*	-Similar to Ret removed.
-	*	-PUSH RAX
-	*	-LEA RAX, [RIP]
-	*	-MOV[RIP + 9 + Delta], RAX
-	*	-POP RAX
-	*	-ADD[RIP + 6 + Delta], JumpDisp
-	*	-JMP[RIP + Delta]
-	*	-Saving rip, adding the jump offset to it ourselves, and jumping to it.
-	*	-Can be alternatively accomplished using a 'RET' instruction.
+	*	- Similar to Ret removed.
+	*	- PUSH RAX
+	*	- LEA RAX, [RIP]
+	*	- MOV[RIP + 9 + Delta], RAX
+	*	- POP RAX
+	*	- ADD[RIP + 6 + Delta], JumpDisp
+	*	- JMP[RIP + Delta]
+	*	- Saving rip, adding the jump offset to it ourselves, and jumping to it.
+	*	- Can be alternatively accomplished using a 'RET' instruction. might trick the dissasembler even more.
 	* 
 	*/
 
