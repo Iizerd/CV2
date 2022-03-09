@@ -4,10 +4,10 @@
 
 BOOLEAN BmGenerateEmulateRet1(PNATIVE_BLOCK Block, UINT JunkSize)
 {
-	//-	POP [RIP + 6 + Delta]
+	//-	POP [RIP + 6 + Delta]		[GROUP_START]
 	//-	JMP [RIP + Delta]
 	//-	**JUNK**
-	//- [Return Address]
+	//- [Return Address]			[GROUP_END]
 
 	XED_ENCODER_INSTRUCTION InstList[2];
 	XedInst1(&InstList[0], XedGlobalMachineState, XED_ICLASS_POP, 64, XedMemBD(XED_REG_RIP, XedDisp(6 + JunkSize, 32), 64));
@@ -51,9 +51,9 @@ BOOLEAN BmGenerateEmulateRet1(PNATIVE_BLOCK Block, UINT JunkSize)
 BOOLEAN BmGenerateEmulateRet2(PNATIVE_BLOCK Block, UINT JunkSize, UINT DeadstoreMethod)
 {
 	/*
-	*  - JMP Delta
+	*  - JMP Delta			[GROUP_START]
 	*  - **JUNK**
-	*  - PUSH 0xC3
+	*  - PUSH 0xC3			[GROUP_START]
 	*/
 
 	//Generate the deadstore instruction(s) and save the delta in a variable.
@@ -178,21 +178,48 @@ BOOLEAN BmGenerateEmulateRet2(PNATIVE_BLOCK Block, UINT JunkSize, UINT Deadstore
 	return TRUE;
 }
 
-BOOLEAN BmGenerateRelJumpReplacement(PNATIVE_BLOCK Block, INT32 Displacement)
+BOOLEAN BmConvertRelNonConJumpToAbsolute(PNATIVE_BLOCK Block, INT32 Displacement)
 {
 	/*
 	* Relative Jump Remover :
-	*	- Similar to Ret removed.
 	*	- PUSH RAX
-	*	- LEA RAX, [RIP]
-	*	- MOV[RIP + 9 + Delta], RAX
-	*	- POP RAX
-	*	- ADD[RIP + 6 + Delta], JumpDisp
-	*	- JMP[RIP + Delta]
-	*	- Saving rip, adding the jump offset to it ourselves, and jumping to it.
-	*	- Can be alternatively accomplished using a 'RET' instruction. might trick the dissasembler even more.
-	* 
+	*	- PUSHFQ
+	*	- MOVABS RAX, Displacement
+	*	- PUSH RAX
+	*	- LEA RAX,[RIP]
+	*	- ADD RAX,[RSP]
+	*	- ADD RSP,8
+	*	- POPFQ
+	*	- XCHG RAX,[RSP]
+	*	- RET					; Can additionally remove this Ret with the Emulators above.
 	*/
 
-	//Need to figure out a way to do this with the label scheme.
+	INT64 WDisplacement = (INT64)Displacement;
+
+	XED_ENCODER_INSTRUCTION InstList[10];
+	XedInst1(&InstList[0], XedGlobalMachineState, XED_ICLASS_PUSH, 64, XedReg(XED_REG_RAX));
+	XedInst0(&InstList[1], XedGlobalMachineState, XED_ICLASS_PUSHFQ, 64);
+	XedInst2(&InstList[2], XedGlobalMachineState, XED_ICLASS_MOV, 64, XedReg(XED_REG_RAX), XedImm0(*(PULONGLONG)&WDisplacement, 64));
+	XedInst1(&InstList[3], XedGlobalMachineState, XED_ICLASS_PUSH, 64, XedReg(XED_REG_RAX));
+	XedInst2(&InstList[4], XedGlobalMachineState, XED_ICLASS_LEA, 64, XedReg(XED_REG_RAX), XedMemBD(XED_REG_RIP, XedDisp(-1, 32), 64)); 
+	XedInst2(&InstList[5], XedGlobalMachineState, XED_ICLASS_ADD, 64, XedReg(XED_REG_RAX), XedMemB(XED_REG_RSP, 64));
+	XedInst2(&InstList[6], XedGlobalMachineState, XED_ICLASS_ADD, 64, XedReg(XED_REG_RSP), XedImm0(8, 8));
+	XedInst0(&InstList[7], XedGlobalMachineState, XED_ICLASS_POPFQ, 64);
+	XedInst2(&InstList[8], XedGlobalMachineState, XED_ICLASS_XCHG, 64, XedReg(XED_REG_RAX), XedMemB(XED_REG_RSP, 64));
+	XedInst0(&InstList[9], XedGlobalMachineState, XED_ICLASS_RET_NEAR, 64);
+
+	//now decode and output :D
+}
+
+BOOLEAN BmConvertRelConJumpToAbsolute(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 Displacement)
+{
+	/*
+	* Relative Conditional Jump emulator.
+	* 
+	*		BRANCH
+	*		JMP NotTakenEndJumpLabel
+	*	TakeLabel:
+	*		BmConvertRelNonConJumpToAbsolute
+	*	NotTakenEndJumpLabel:
+	*/
 }

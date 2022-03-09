@@ -16,18 +16,28 @@ int main()
 	srand(time(NULL));
 	XedGlobalInit();
 
-	for (int i = 0; i < 10; i++)
-	{
-		NATIVE_BLOCK Block;
-		Block.Front = Block.Back = NULL;
-		BmGenerateEmulateRet2(&Block, 1, DEADSTORE_METHOD_MOV);
-		UINT AsmSize = 0;
-		PVOID Asm = NrAssemble(&Block, &AsmSize);
 
-		for (ULONG i = 0; i < AsmSize; i++)
-			std::cout << std::setw(2) << std::setfill('0') << std::hex << (INT)((PUCHAR)Asm)[i] << ' '; //printf("%X ", ((PUCHAR)Asm)[i]);
-		printf("\n");
-	}
+	//UINT OutSize = 0;
+	//PUCHAR Result = XedEncodeInstructions(InstList, 10, &OutSize);
+	//if (Result && OutSize)
+	//{
+	//	for (ULONG i = 0; i < OutSize; i++)
+	//		std::cout << std::setw(2) << std::setfill('0') << std::hex << (INT)((PUCHAR)Result)[i] << ' '; //printf("%X ", ((PUCHAR)Asm)[i]);
+	//	printf("\n");
+	//}
+
+	//for (int i = 0; i < 10; i++)
+	//{
+	//	NATIVE_BLOCK Block;
+	//	Block.Front = Block.Back = NULL;
+	//	BmGenerateEmulateRet2(&Block, 1, DEADSTORE_METHOD_MOV);
+	//	UINT AsmSize = 0;
+	//	PVOID Asm = NrAssemble(&Block, &AsmSize);
+
+	//	for (ULONG i = 0; i < AsmSize; i++)
+	//		std::cout << std::setw(2) << std::setfill('0') << std::hex << (INT)((PUCHAR)Asm)[i] << ' '; //printf("%X ", ((PUCHAR)Asm)[i]);
+	//	printf("\n");
+	//}
 
 
 	//NATIVE_BLOCK Block;
