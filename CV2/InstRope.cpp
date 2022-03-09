@@ -221,7 +221,7 @@ BOOLEAN _IrGetMinId(PINST_BLOCK Block, PINT32 Id)
 	INT32 LowestId = 0;
 	for (PINST_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
-		if (T->LinkData.Flags & (CODE_FLAG_IS_LABEL | CODE_FLAG_IS_MARKER))
+		if (T->LinkData.Flags & (CODE_FLAG_IS_LABEL))
 		{
 			if (FALSE == FoundFirstId)
 			{
@@ -242,7 +242,7 @@ BOOLEAN _IrGetMaxId(PINST_BLOCK Block, PINT32 Id)
 	INT32 HighestId = 0;
 	for (PINST_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
-		if (T->LinkData.Flags & (CODE_FLAG_IS_LABEL | CODE_FLAG_IS_MARKER))
+		if (T->LinkData.Flags & (CODE_FLAG_IS_LABEL))
 		{
 			if (FALSE == FoundFirstId)
 			{
@@ -265,7 +265,7 @@ VOID _IrRebaseIds(PINST_BLOCK Block, INT32 IdBase)
 		INT32 IdDelta = IdBase - LowestId;
 		for (PINST_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 		{
-			if (T->LinkData.Flags & (CODE_FLAG_IS_LABEL | CODE_FLAG_IS_MARKER | CODE_FLAG_USES_LABEL | CODE_FLAG_USES_MARKER))
+			if (T->LinkData.Flags & (CODE_FLAG_IS_LABEL | CODE_FLAG_USES_LABEL))
 				T->LinkData.Id += IdDelta;
 		}
 	}

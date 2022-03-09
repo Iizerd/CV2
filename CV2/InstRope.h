@@ -10,14 +10,12 @@
 
 
 #define CODE_FLAG_IS_INST		IrGeneralFlag(0)
-#define CODE_FLAG_IS_LABEL		IrGeneralFlag(1) //Subtle difference between label and marker. Labels are targets for jumps and act as block breaks.
-#define CODE_FLAG_IS_MARKER		IrGeneralFlag(2) //Markers are for rip relative instructions. This will make parsing function blocks faster much. Otherwise would have to make sure the Label is referenced by a jump somewhere.
-#define CODE_FLAG_IS_RAW_DATA	IrGeneralFlag(3)
-#define CODE_FLAG_GROUP_START	IrGeneralFlag(4) //Specifies start of a group
-#define CODE_FLAG_GROUP_END		IrGeneralFlag(5) //End of a group
-#define CODE_FLAG_IN_GROUP		IrGeneralFlag(6) //Everything between and including start/end of a group have this. Must all be treated as an inseparable block.
-#define CODE_FLAG_USES_LABEL	IrGeneralFlag(7)
-#define CODE_FLAG_USES_MARKER	IrGeneralFlag(8)
+#define CODE_FLAG_IS_LABEL		IrGeneralFlag(1) 
+#define CODE_FLAG_IS_RAW_DATA	IrGeneralFlag(2)
+#define CODE_FLAG_GROUP_START	IrGeneralFlag(3) //Specifies start of a group
+#define CODE_FLAG_GROUP_END		IrGeneralFlag(4) //End of a group
+#define CODE_FLAG_IN_GROUP		IrGeneralFlag(5) //Everything between and including start/end of a group have this. Must all be treated as an inseparable block.
+#define CODE_FLAG_USES_LABEL	IrGeneralFlag(6)
 
 #define CODE_FLAG_OCCUPIES_SPACE	(CODE_FLAG_IS_INST | CODE_FLAG_IS_RAW_DATA) //Physically exists. RawDataSize and RawData are valid.
 

@@ -3,6 +3,7 @@
 #include "InstRope.h"
 #include "NativeRope.h"
 #include "FunctionBlock.h"
+#include "BranchMan.h"
 
 #include <iomanip>
 
@@ -12,26 +13,41 @@ UCHAR TestArray[] = { 0x48, 0x09, 0xC0, 0x48, 0x09, 0xC0, 0x75, 0x06, 0x48, 0x21
 
 int main()
 {
+	srand(time(NULL));
 	XedGlobalInit();
 
-	NATIVE_BLOCK Block;
-	Block.Back = Block.Front = NULL;
-	NrDissasemble(&Block, TestArray, sizeof(TestArray));
+	for (int i = 0; i < 10; i++)
+	{
+		NATIVE_BLOCK Block;
+		Block.Front = Block.Back = NULL;
+		BmGenerateEmulateRet2(&Block, 1, DEADSTORE_METHOD_MOV);
+		UINT AsmSize = 0;
+		PVOID Asm = NrAssemble(&Block, &AsmSize);
+
+		for (ULONG i = 0; i < AsmSize; i++)
+			std::cout << std::setw(2) << std::setfill('0') << std::hex << (INT)((PUCHAR)Asm)[i] << ' '; //printf("%X ", ((PUCHAR)Asm)[i]);
+		printf("\n");
+	}
+
+
+	//NATIVE_BLOCK Block;
+	//Block.Back = Block.Front = NULL;
+	//NrDissasemble(&Block, TestArray, sizeof(TestArray));
 	//NrPromoteAllRelativeJumpsTo32BitDisplacement(&Block);
-	NrHandleRipRelativeInstructions(&Block);
+	//
 
-	UINT AsmSize = 0;
-	PVOID Asm = NrAssemble(&Block, &AsmSize);
+	//UINT AsmSize = 0;
+	//PVOID Asm = NrAssemble(&Block, &AsmSize);
 
-	for (ULONG i = 0; i < AsmSize; i++)
-		std::cout << std::setw(2) << std::setfill('0') << std::hex << (INT)((PUCHAR)Asm)[i] << ' '; //printf("%X ", ((PUCHAR)Asm)[i]);
-	printf("\n");
+	//for (ULONG i = 0; i < AsmSize; i++)
+	//	std::cout << std::setw(2) << std::setfill('0') << std::hex << (INT)((PUCHAR)Asm)[i] << ' '; //printf("%X ", ((PUCHAR)Asm)[i]);
+	//printf("\n");
 
-	//NrDebugPrintIClass(&Block);
-	PFUNCTION_BLOCK FbTree = FbCreateTree(&Block);
-	FbPrintNotTakenPath(FbTree);
-	FbFreeTree(FbTree);
-	system("pause");
+	////NrDebugPrintIClass(&Block);
+	//PFUNCTION_BLOCK FbTree = FbCreateTree(&Block);
+	//FbPrintNotTakenPath(FbTree);
+	//FbFreeTree(FbTree);
+	//system("pause");
 
 	return 1;
 }

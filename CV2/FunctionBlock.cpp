@@ -18,7 +18,8 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 	
 	for (PNATIVE_LINK T = CodeBlock->Front; T && T != CodeBlock->Back->Next; T = T->Next)
 	{
-		if (T->LinkData.Flags & (CODE_FLAG_IS_LABEL | CODE_FLAG_IS_REL_JUMP))
+		if ((T->LinkData.Flags & CODE_FLAG_IS_REL_JUMP) ||
+			((T->LinkData.Flags & CODE_FLAG_IS_LABEL) && (T->LinkData.Flags & CODE_FLAG_IS_JUMP_TARGET)))
 		{
 			PFUNCTION_BLOCK NextBlock = AllocateS(FUNCTION_BLOCK);
 			if (!NextBlock)

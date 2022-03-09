@@ -8,6 +8,7 @@ struct _NATIVE_LINK;
 
 #define CODE_FLAG_IS_REL_JUMP		IrSpecificFlag(0)
 #define CODE_FLAG_IS_RIP_RELATIVE	IrSpecificFlag(1)
+#define CODE_FLAG_IS_JUMP_TARGET	IrSpecificFlag(2)
 
 typedef UINT PREOP_STATUS;
 
@@ -56,8 +57,7 @@ typedef struct _NATIVE_BLOCK
 	PNATIVE_LINK Back;
 }NATIVE_BLOCK, *PNATIVE_BLOCK;
 
-
-#define NrAllocateLink() AllocateS(NATIVE_LINK);
+#define NrAllocateLink() AllocateS(NATIVE_LINK)
 
 VOID NrFreeLink(PNATIVE_LINK Link);
 
@@ -69,7 +69,9 @@ VOID NrZeroLink(PNATIVE_LINK Link);
 
 VOID NrInitForInst(PNATIVE_LINK Link);
 
-VOID NrInitForLabel(PNATIVE_LINK Link, UINT32 LabelId, PNATIVE_LINK Next, PNATIVE_LINK Prev);
+VOID NrInitForLabel(PNATIVE_LINK Link, UINT32 Id, PNATIVE_LINK Next, PNATIVE_LINK Prev);
+
+VOID NrMarkBlockAsGroup(PNATIVE_BLOCK Block);
 
 PNATIVE_LINK NrTraceToLabel(PNATIVE_LINK Start, PNATIVE_LINK End, ULONG Id);
 
@@ -89,18 +91,22 @@ UINT NrCalcBlockSize(PNATIVE_BLOCK Block);
 
 PNATIVE_LINK NrValidateDelta(PNATIVE_LINK Start, INT32 Delta, PINT32 LeftOver);
 
-BOOLEAN NrHandleRelativeJumps(PNATIVE_BLOCK Block);
-
 BOOLEAN NrCalcRipDelta(PNATIVE_LINK Link, PINT32 DeltaOut);
 
 //It is very slow to promote all jumps one by one as NrAssemble will do if nessicary. Promoting them all now is very fast. This is because you have to iterate through all previous jumps after u change one of them.
 BOOLEAN NrPromoteAllRelativeJumpsTo32BitDisplacement(PNATIVE_BLOCK Block);
 
-BOOLEAN NrFixRelativeJumps(PNATIVE_BLOCK Block);
+PREOP_STATUS NrRelativeJumpPreOp(PNATIVE_LINK Link, PVOID Context);
+
+PREOP_STATUS NrRipRelativePreOp(PNATIVE_LINK Link, PVOID Context);
+
+BOOLEAN NrIsRelativeJump(PNATIVE_LINK Link);
 
 BOOLEAN NrIsRipRelativeInstruction(PNATIVE_LINK Link, PINT32 Delta);
 
-BOOLEAN NrHandleRipRelativeInstructions(PNATIVE_BLOCK Block);
+BOOLEAN NrPutLabel(PNATIVE_LINK Link, UINT32 AuxFlags = 0);
+
+BOOLEAN NrHandleSpecialInstructions(PNATIVE_BLOCK Block);
 
 BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength);
 

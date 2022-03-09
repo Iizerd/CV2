@@ -29,12 +29,12 @@
 #define MaxVal max
 
 //Maybe make a random class if i need more numbers.
-template<typename T>
-INLINE T RndGetRandomNum(T Min, T Max)
+template<typename NumType>
+INLINE NumType RndGetRandomNum(NumType Min, NumType Max)
 {
 	std::random_device RandomDevice;
 	std::default_random_engine Generator(RandomDevice());
-	std::uniform_int_distribution<T> Distribution(Min, Max);
+	std::uniform_int_distribution<NumType> Distribution(Min, Max);
 	return Distribution(Generator);
 }
 

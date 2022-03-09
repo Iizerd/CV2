@@ -48,3 +48,12 @@ XED_ICLASS_ENUM RaGetRandomBranchIClass()
 	case 14: return XED_ICLASS_JZ;
 	}
 }
+
+POSTOP_STATUS RaRandomizeInstAfterAssembly(PNATIVE_LINK Link, PUCHAR RawData, PVOID Context)
+{
+	for (UINT i = 0; i < Link->RawDataSize; i++)
+	{
+		RawData[i] = (UCHAR)RndGetRandomNum<UINT>(0, 255);
+	}
+	return POSTOP_SUCCESS;
+}

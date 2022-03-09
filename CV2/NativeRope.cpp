@@ -27,6 +27,7 @@ VOID NrFreeLink(PNATIVE_LINK Link)
 VOID NrFreeBlock(PNATIVE_BLOCK Block)
 {
 	NrFreeBlock2(Block->Front, Block->Back);
+	Block->Front = Block->Back = NULL;
 }
 
 VOID NrFreeBlock2(PNATIVE_LINK Start, PNATIVE_LINK End)
@@ -52,13 +53,21 @@ VOID NrInitForInst(PNATIVE_LINK Link)
 	Link->LinkData.Flags |= CODE_FLAG_IS_INST;
 }
 
-VOID NrInitForLabel(PNATIVE_LINK Link, UINT32 LabelId, PNATIVE_LINK Next, PNATIVE_LINK Prev)
+VOID NrInitForLabel(PNATIVE_LINK Link, UINT32 Id, PNATIVE_LINK Next, PNATIVE_LINK Prev)
 {
 	RtlSecureZeroMemory(Link, sizeof(NATIVE_LINK));
 	Link->LinkData.Flags |= CODE_FLAG_IS_LABEL;
-	Link->LinkData.Id = LabelId;
+	Link->LinkData.Id = Id;
 	Link->Next = Next;
 	Link->Prev = Prev;
+}
+
+VOID NrMarkBlockAsGroup(PNATIVE_BLOCK Block)
+{
+	Block->Front->LinkData.Flags |= CODE_FLAG_GROUP_START;
+	Block->Back->LinkData.Flags |= CODE_FLAG_GROUP_END;
+	for (PNATIVE_LINK T = Block->Front; T; T = T->Next)
+		T->LinkData.Flags |= CODE_FLAG_IN_GROUP;
 }
 
 PNATIVE_LINK NrTraceToLabel(PNATIVE_LINK Start, PNATIVE_LINK End, ULONG Id)
@@ -66,16 +75,6 @@ PNATIVE_LINK NrTraceToLabel(PNATIVE_LINK Start, PNATIVE_LINK End, ULONG Id)
 	for (PNATIVE_LINK T = Start; T && T != End->Next; T = T->Next)
 	{
 		if ((T->LinkData.Flags & CODE_FLAG_IS_LABEL) && T->LinkData.Id == Id)
-			return T;
-	}
-	return NULL;
-}
-
-PNATIVE_LINK NrTraceToMarker(PNATIVE_LINK Start, PNATIVE_LINK End, ULONG Id)
-{
-	for (PNATIVE_LINK T = Start; T && T != End->Next; T = T->Next)
-	{
-		if ((T->LinkData.Flags & CODE_FLAG_IS_MARKER) && T->LinkData.Id == Id)
 			return T;
 	}
 	return NULL;
@@ -165,7 +164,16 @@ BOOLEAN NrDeepCopyLink(PNATIVE_LINK Dest, PNATIVE_LINK Source)
 			return FALSE;
 		}
 	}
-	else //its a lebl
+	else if (Source->LinkData.Flags & CODE_FLAG_IS_RAW_DATA)
+	{
+		*(PVOID*)&Dest->LinkData = *(PVOID*)&Source->LinkData;
+		Dest->RawDataSize = Source->RawDataSize;
+		Dest->RawData = Allocate(Source->RawDataSize);
+		if (!Dest->RawData)
+			return FALSE;
+		RtlCopyMemory(Dest->RawData, Source->RawData, Source->RawDataSize);
+	}
+	else if (Source->LinkData.Flags & (CODE_FLAG_IS_LABEL))
 	{
 		*(PVOID*)&Dest->LinkData = *(PVOID*)&Source->LinkData;
 	}
@@ -366,54 +374,32 @@ PREOP_STATUS NrRelativeJumpPreOp(PNATIVE_LINK Link, PVOID Context)
 	return PREOP_SUCCESS;
 }
 
-BOOLEAN NrHandleRelativeJumps(PNATIVE_BLOCK Block)
+PREOP_STATUS NrRipRelativePreOp(PNATIVE_LINK Link, PVOID Context)
 {
-	INT32 CurrentLabelId = 0;
-	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
-	{
-		if (!(T->LinkData.Flags & CODE_FLAG_IS_INST))
-			continue;
 
-		UINT OperandCount = XedDecodedInstNumOperands(&T->DecodedInst);
-		if (OperandCount < 1)
-			continue;
+	return PREOP_SUCCESS;
+}
 
-		XED_CATEGORY_ENUM Category = XedDecodedInstGetCategory(&T->DecodedInst);
-		if (Category != XED_CATEGORY_COND_BR && Category != XED_CATEGORY_UNCOND_BR)
-			continue;
+BOOLEAN NrIsRelativeJump(PNATIVE_LINK Link)
+{
+	UINT OperandCount = XedDecodedInstNumOperands(&Link->DecodedInst);
+	if (OperandCount < 1)
+		return FALSE;
 
-		CONST XED_INST* Inst = XedDecodedInstInst(&T->DecodedInst);
-		CONST XED_OPERAND* Operand = XedInstOperand(Inst, 0);
-		if (!Operand)
-			continue;
+	XED_CATEGORY_ENUM Category = XedDecodedInstGetCategory(&Link->DecodedInst);
+	if (Category != XED_CATEGORY_COND_BR && Category != XED_CATEGORY_UNCOND_BR)
+		return FALSE;
 
-		XED_OPERAND_TYPE_ENUM OperandType = XedOperandType(Operand);
-		if (OperandType != XED_OPERAND_TYPE_IMM && OperandType != XED_OPERAND_TYPE_IMM_CONST)
-			continue;
+	CONST XED_INST* Inst = XedDecodedInstInst(&Link->DecodedInst);
+	CONST XED_OPERAND* Operand = XedInstOperand(Inst, 0);
+	if (!Operand)
+		return FALSE;
 
-		INT32 BranchDisplacement = XedDecodedInstGetBranchDisplacement(&T->DecodedInst);
-		INT32 LeftOver = 0;
-		PNATIVE_LINK TargetLink = NrValidateDelta(T, BranchDisplacement, &LeftOver);
-		if (!TargetLink)
-		{
-			MLog("Failed to validate jump. [%s][%d]\n", XedCategoryEnumToString(Category), BranchDisplacement);
-			return FALSE;
-		}
+	XED_OPERAND_TYPE_ENUM OperandType = XedOperandType(Operand);
+	if (OperandType != XED_OPERAND_TYPE_IMM && OperandType != XED_OPERAND_TYPE_IMM_CONST)
+		return FALSE;
 
-		if (TargetLink->Prev && (TargetLink->Prev->LinkData.Flags & CODE_FLAG_IS_LABEL))
-			T->LinkData.Id = TargetLink->Prev->LinkData.Id;
-		else
-		{
-			PNATIVE_LINK LabelLink = NrAllocateLink();
-			NrInitForLabel(LabelLink, CurrentLabelId, NULL, NULL);
-			IrInsertLinkBefore(Block, TargetLink, LabelLink);
-			T->LinkData.Id = CurrentLabelId;
-			++CurrentLabelId;
-		}
-
-		NrAddPreAssemblyOperation(T, NrRelativeJumpPreOp, (PVOID)(INT64)LeftOver, FALSE);
-		T->LinkData.Flags |= (CODE_FLAG_IS_REL_JUMP | CODE_FLAG_USES_LABEL);
-	}
+	return TRUE;
 }
 
 BOOLEAN NrIsRipRelativeInstruction(PNATIVE_LINK Link, PINT32 Delta)
@@ -438,20 +424,76 @@ BOOLEAN NrIsRipRelativeInstruction(PNATIVE_LINK Link, PINT32 Delta)
 	return FALSE;
 }
 
-BOOLEAN NrHandleRipRelativeInstructions(PNATIVE_BLOCK Block)
+BOOLEAN NrHandleSpecialInstructions(PNATIVE_BLOCK Block)
 {
-	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T= T->Next)
+	INT32 CurrentId = 0;
+
+	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
-		if (T->LinkData.Flags & CODE_FLAG_IS_INST)
+		if (!(T->LinkData.Flags & CODE_FLAG_IS_INST))
+			continue;
+
+		if (NrIsRelativeJump(T))
 		{
-			INT32 Delta = 0;
-			if (NrIsRipRelativeInstruction(T, &Delta))
+			INT32 BranchDisplacement = XedDecodedInstGetBranchDisplacement(&T->DecodedInst);
+			INT32 LeftOver = 0;
+			PNATIVE_LINK TargetLink = NrValidateDelta(T, BranchDisplacement, &LeftOver);
+			if (!TargetLink)
 			{
-				printf("Found rip rel instruction, %d\n", Delta);
+				MLog("Failed to validate delta for relative jump [%s][%d]\n", XedCategoryEnumToString(XedDecodedInstGetCategory(&T->DecodedInst)), BranchDisplacement);
+				return FALSE;
 			}
+
+			if (TargetLink->Prev && (TargetLink->Prev->LinkData.Flags & CODE_FLAG_IS_LABEL))
+				T->LinkData.Id = TargetLink->Prev->LinkData.Id;
+			else
+			{
+				PNATIVE_LINK LabelLink = NrAllocateLink();
+				if (!LabelLink)
+				{
+					MLog("Failed to allocate label link.\n");
+					return FALSE;
+				}
+				NrInitForLabel(LabelLink, CurrentId, NULL, NULL);
+				LabelLink->LinkData.Flags |= CODE_FLAG_IS_JUMP_TARGET;
+				IrInsertLinkBefore(Block, TargetLink, LabelLink);
+				T->LinkData.Id = CurrentId;
+				++CurrentId;
+			}
+
+			NrAddPreAssemblyOperation(T, NrRelativeJumpPreOp, (PVOID)(INT64)LeftOver, FALSE);
+			T->LinkData.Flags |= (CODE_FLAG_IS_REL_JUMP | CODE_FLAG_USES_LABEL);
+		}
+		else if (INT32 Delta = 0; NrIsRipRelativeInstruction(T, &Delta))
+		{
+			INT32 LeftOver = 0;
+			PNATIVE_LINK TargetLink = NrValidateDelta(T, Delta, &LeftOver);
+			if (!TargetLink)
+			{
+				MLog("Failed to validate delta for rip relative instruction.\n [%d]", Delta);
+				return FALSE;
+			}
+
+			if (TargetLink->Prev && (TargetLink->Prev->LinkData.Flags & CODE_FLAG_IS_LABEL))
+				T->LinkData.Id = TargetLink->Prev->LinkData.Id;
+			else
+			{
+				PNATIVE_LINK LabelLink = NrAllocateLink();
+				if (!LabelLink)
+				{
+					MLog("Failed to allocate label link.\n");
+					return FALSE;
+				}
+				NrInitForLabel(LabelLink, CurrentId, NULL, NULL);
+				IrInsertLinkBefore(Block, TargetLink, LabelLink);
+				T->LinkData.Id = CurrentId;
+				++CurrentId;
+			}
+
+			NrAddPreAssemblyOperation(T, NrRipRelativePreOp, (PVOID)(INT64)LeftOver, FALSE);
+			T->LinkData.Flags |= (CODE_FLAG_IS_RIP_RELATIVE | CODE_FLAG_USES_LABEL);
 		}
 	}
-	return TRUE;
 }
 
 BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
@@ -500,7 +542,7 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 		CodePointer += RawDataSize;
 	}
 
-	if (!NrHandleRelativeJumps(Block))
+	if (!NrHandleSpecialInstructions(Block))
 	{
 		MLog("Failed to create labels.\n");
 		return FALSE;
@@ -535,13 +577,6 @@ PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 		continue;
 	}
 
-	////Fix up all jump deltas now that everything is where its going to be for final assembly.
-	//if (!NrFixRelativeJumps(Block))
-	//{
-	//	MLog("Failed to fix all relative jumps before assembling.\n");
-	//	return NULL;
-	//}
-
 	UINT TotalSize = NrCalcBlockSize(Block);
 	if (!Block->Front || !Block->Back || !AssembledSize || !TotalSize)
 	{
@@ -561,7 +596,6 @@ PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 	{
 		if (T->LinkData.Flags & CODE_FLAG_OCCUPIES_SPACE)
 		{
-
 			RtlCopyMemory(CopyTarget, T->RawData, T->RawDataSize);
 
 			for (PASSEMBLY_POSTOP PostOp = T->PostAssemblyOperations; PostOp; PostOp = PostOp->Next)
@@ -699,3 +733,74 @@ BOOLEAN NrAreFlagsClobbered(PNATIVE_LINK Start, PNATIVE_LINK End)
 //	}
 //	return TRUE;
 //}
+
+//BOOLEAN NrHandleRipRelativeInstructions(PNATIVE_BLOCK Block)
+//{
+//	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
+//	{
+//		if (T->LinkData.Flags & CODE_FLAG_IS_INST)
+//		{
+//			INT32 Delta = 0;
+//			if (!NrIsRipRelativeInstruction(T, &Delta))
+//				continue;
+//			INT32 LeftOver = 0;
+//			PNATIVE_LINK TargetLink = NrValidateDelta(T, Delta, &LeftOver);
+//			if (!TargetLink)
+//			{
+//				MLog("Failed to validate delta for rip relative instruction.\n [%d]", Delta);
+//				return FALSE;
+//			}
+//
+//			if (TargetLink->Prev && (TargetLink->Prev->LinkData.Flags & CODE_FLAG_IS_LABEL))
+//				T->LinkData.Id = TargetLink->Prev->LinkData.Id;
+//			else
+//			{
+//				PNATIVE_LINK LabelLink = NrAllocateLink();
+//				NrInitForLabel(LabelLink, CurrentLabelId, NULL, NULL);
+//				IrInsertLinkBefore(Block, TargetLink, LabelLink);
+//				T->LinkData.Id = CurrentLabelId;
+//				++CurrentLabelId;
+//			}
+//
+//			NrAddPreAssemblyOperation(T, NrRipRelativePreOp, (PVOID)(INT64)LeftOver, FALSE);
+//		}
+//	}
+//	return TRUE;
+//}
+
+//BOOLEAN NrHandleRelativeJumps(PNATIVE_BLOCK Block)
+//{
+//	INT32 CurrentLabelId = 0;
+//	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
+//	{
+//		if (!(T->LinkData.Flags & CODE_FLAG_IS_INST))
+//			continue;
+//
+//		if (!NrIsRelativeJump(T))
+//			continue;
+//
+//		INT32 BranchDisplacement = XedDecodedInstGetBranchDisplacement(&T->DecodedInst);
+//		INT32 LeftOver = 0;
+//		PNATIVE_LINK TargetLink = NrValidateDelta(T, BranchDisplacement, &LeftOver);
+//		if (!TargetLink)
+//		{
+//			MLog("Failed to validate jump. [%s][%d]\n", XedCategoryEnumToString(XedDecodedInstGetCategory(&T->DecodedInst)), BranchDisplacement);
+//			return FALSE;
+//		}
+//
+//		if (TargetLink->Prev && (TargetLink->Prev->LinkData.Flags & CODE_FLAG_IS_LABEL))
+//			T->LinkData.Id = TargetLink->Prev->LinkData.Id;
+//		else
+//		{
+//			PNATIVE_LINK LabelLink = NrAllocateLink();
+//			NrInitForLabel(LabelLink, CurrentLabelId, NULL, NULL);
+//			IrInsertLinkBefore(Block, TargetLink, LabelLink);
+//			T->LinkData.Id = CurrentLabelId;
+//			++CurrentLabelId;
+//		}
+//
+//		NrAddPreAssemblyOperation(T, NrRelativeJumpPreOp, (PVOID)(INT64)LeftOver, FALSE);
+//		T->LinkData.Flags |= (CODE_FLAG_IS_REL_JUMP | CODE_FLAG_USES_LABEL);
+//	}
+//}
+
