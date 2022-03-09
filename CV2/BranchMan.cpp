@@ -40,7 +40,7 @@ BOOLEAN BmGenerateEmulateRet1(PNATIVE_BLOCK Block, UINT JunkSize)
 		NrFreeBlock(Block);
 		return FALSE;
 	}
-	NrAddPostAssemblyOperation(JunkLink, RaRandomizeInstAfterAssembly, NULL, FALSE);
+	NrAddPostAssemblyOperation(JunkLink, RaRandomizeInstAfterAssembly, NULL, 0UL, FALSE);
 
 	IrPutLinkBack(Block, JunkLink);
 
@@ -135,7 +135,7 @@ BOOLEAN BmGenerateEmulateRet2(PNATIVE_BLOCK Block, UINT JunkSize, UINT Deadstore
 		JunkLink->RawDataSize = JunkSize;
 		JunkLink->RawData = Allocate(JunkSize);
 		JunkLink->LinkData.Flags |= CODE_FLAG_IS_RAW_DATA;
-		NrAddPostAssemblyOperation(JunkLink, RaRandomizeInstAfterAssembly, NULL, FALSE);
+		NrAddPostAssemblyOperation(JunkLink, RaRandomizeInstAfterAssembly, NULL, 0UL, FALSE);
 		JmpDisp += JunkSize;
 		IrPutLinkFront(Block, JunkLink);
 	}

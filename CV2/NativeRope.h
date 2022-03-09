@@ -10,32 +10,31 @@ struct _NATIVE_LINK;
 #define CODE_FLAG_IS_RIP_RELATIVE	IrSpecificFlag(1)
 #define CODE_FLAG_IS_JUMP_TARGET	IrSpecificFlag(2)
 
-typedef UINT PREOP_STATUS;
+#define ASMOP_FLAG_FREE_CONTEXT		IrSpecificFlag(3)
 
+typedef UINT PREOP_STATUS;
 #define PREOP_SUCCESS			0	//Continue to next operation and further instructions
 #define PREOP_RESTART			1	//Go back to the first instruction and start again(most likely a displacement width changed). Try not to ever return this.
 #define PREOP_CRITICAL_ERROR	2	//Cancel assembly completely. Something bad happened
-
 typedef PREOP_STATUS(*FnAssemblyPreOp)(_NATIVE_LINK* Link, PVOID Context);
 typedef struct _ASSEMBLY_PREOP
 {
 	_ASSEMBLY_PREOP*	Next;
 	PVOID				Context;
 	FnAssemblyPreOp		Operation;
+	UINT32				Flags;
 }ASSEMBLY_PREOP, * PASSEMBLY_PREOP;
 
-
 typedef UINT POSTOP_STATUS;
-
 #define POSTOP_SUCCESS			0	//Continue to next operation and further instructions
 #define POSTOP_CRITICAL_ERROR	1	//Cancel assembly completely
-
 typedef POSTOP_STATUS(*FnAssemblyPostOp)(_NATIVE_LINK* Link, PUCHAR RawData, PVOID Context);
 typedef struct _ASSEMBLY_POSTOP
 {
 	_ASSEMBLY_POSTOP*	Next;
 	PVOID				Context;
 	FnAssemblyPostOp	Operation;
+	UINT32				Flags;
 }ASSEMBLY_POSTOP, *PASSEMBLY_POSTOP;
 
 typedef struct _NATIVE_LINK
@@ -75,11 +74,9 @@ VOID NrMarkBlockAsGroup(PNATIVE_BLOCK Block);
 
 PNATIVE_LINK NrTraceToLabel(PNATIVE_LINK Start, PNATIVE_LINK End, ULONG Id);
 
-PNATIVE_LINK NrTraceToMarker(PNATIVE_LINK Start, PNATIVE_LINK End, ULONG Id);
+BOOLEAN NrAddPreAssemblyOperation(PNATIVE_LINK Link, FnAssemblyPreOp Operation, PVOID Context, UINT32 Flags, BOOLEAN Front);
 
-BOOLEAN NrAddPreAssemblyOperation(PNATIVE_LINK Link, FnAssemblyPreOp Operation, PVOID Context, BOOLEAN Front);
-
-BOOLEAN NrAddPostAssemblyOperation(PNATIVE_LINK Link, FnAssemblyPostOp Operation, PVOID Context, BOOLEAN Front);
+BOOLEAN NrAddPostAssemblyOperation(PNATIVE_LINK Link, FnAssemblyPostOp Operation, PVOID Context, UINT32 Flags, BOOLEAN Front);
 
 BOOLEAN NrDeepCopyLink(PNATIVE_LINK Dest, PNATIVE_LINK Source);
 
@@ -103,8 +100,6 @@ PREOP_STATUS NrRipRelativePreOp(PNATIVE_LINK Link, PVOID Context);
 BOOLEAN NrIsRelativeJump(PNATIVE_LINK Link);
 
 BOOLEAN NrIsRipRelativeInstruction(PNATIVE_LINK Link, PINT32 Delta);
-
-BOOLEAN NrPutLabel(PNATIVE_LINK Link, UINT32 AuxFlags = 0);
 
 BOOLEAN NrHandleSpecialInstructions(PNATIVE_BLOCK Block);
 

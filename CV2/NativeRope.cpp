@@ -8,7 +8,7 @@ VOID NrFreeLink(PNATIVE_LINK Link)
 	for (PASSEMBLY_PREOP PreOp = Link->PreAssemblyOperations; PreOp;)
 	{
 		PASSEMBLY_PREOP NextOp = PreOp->Next;
-		if (PreOp->Context)
+		if (PreOp->Flags & ASMOP_FLAG_FREE_CONTEXT && PreOp->Context)
 			Free(PreOp->Context);
 		Free(PreOp);
 		PreOp = NextOp;
@@ -16,7 +16,7 @@ VOID NrFreeLink(PNATIVE_LINK Link)
 	for (PASSEMBLY_POSTOP PostOp = Link->PostAssemblyOperations; PostOp;)
 	{
 		PASSEMBLY_POSTOP NextOp = PostOp->Next;
-		if (PostOp->Context)
+		if (PostOp->Flags & ASMOP_FLAG_FREE_CONTEXT && PostOp->Context)
 			Free(PostOp->Context);
 		Free(PostOp);
 		PostOp = NextOp;
@@ -80,7 +80,7 @@ PNATIVE_LINK NrTraceToLabel(PNATIVE_LINK Start, PNATIVE_LINK End, ULONG Id)
 	return NULL;
 }
 
-BOOLEAN NrAddPreAssemblyOperation(PNATIVE_LINK Link, FnAssemblyPreOp Operation, PVOID Context, BOOLEAN Front)
+BOOLEAN NrAddPreAssemblyOperation(PNATIVE_LINK Link, FnAssemblyPreOp Operation, PVOID Context, UINT32 Flags, BOOLEAN Front)
 {
 	PASSEMBLY_PREOP PreOpStruct = AllocateS(ASSEMBLY_PREOP);
 	if (!PreOpStruct)
@@ -90,6 +90,7 @@ BOOLEAN NrAddPreAssemblyOperation(PNATIVE_LINK Link, FnAssemblyPreOp Operation, 
 	}
 	PreOpStruct->Context = Context;
 	PreOpStruct->Operation = Operation;
+	PreOpStruct->Flags = Flags;
 
 	if (!Link->PreAssemblyOperations)
 		Link->PreAssemblyOperations = PreOpStruct;
@@ -112,7 +113,7 @@ BOOLEAN NrAddPreAssemblyOperation(PNATIVE_LINK Link, FnAssemblyPreOp Operation, 
 	return TRUE;
 };
 
-BOOLEAN NrAddPostAssemblyOperation(PNATIVE_LINK Link, FnAssemblyPostOp Operation, PVOID Context, BOOLEAN Front)
+BOOLEAN NrAddPostAssemblyOperation(PNATIVE_LINK Link, FnAssemblyPostOp Operation, PVOID Context, UINT32 Flags, BOOLEAN Front)
 {
 	PASSEMBLY_POSTOP PostOpStruct = AllocateS(ASSEMBLY_POSTOP);
 	if (!PostOpStruct)
@@ -122,6 +123,7 @@ BOOLEAN NrAddPostAssemblyOperation(PNATIVE_LINK Link, FnAssemblyPostOp Operation
 	}
 	PostOpStruct->Context = Context;
 	PostOpStruct->Operation = Operation;
+	PostOpStruct->Flags = Flags;
 	
 	if (!Link->PostAssemblyOperations)
 		Link->PostAssemblyOperations = PostOpStruct;
@@ -461,7 +463,7 @@ BOOLEAN NrHandleSpecialInstructions(PNATIVE_BLOCK Block)
 				++CurrentId;
 			}
 
-			NrAddPreAssemblyOperation(T, NrRelativeJumpPreOp, (PVOID)(INT64)LeftOver, FALSE);
+			NrAddPreAssemblyOperation(T, NrRelativeJumpPreOp, (PVOID)(INT64)LeftOver, 0UL, FALSE);
 			T->LinkData.Flags |= (CODE_FLAG_IS_REL_JUMP | CODE_FLAG_USES_LABEL);
 		}
 		else if (INT32 Delta = 0; NrIsRipRelativeInstruction(T, &Delta))
@@ -490,7 +492,7 @@ BOOLEAN NrHandleSpecialInstructions(PNATIVE_BLOCK Block)
 				++CurrentId;
 			}
 
-			NrAddPreAssemblyOperation(T, NrRipRelativePreOp, (PVOID)(INT64)LeftOver, FALSE);
+			NrAddPreAssemblyOperation(T, NrRipRelativePreOp, (PVOID)(INT64)LeftOver, 0UL, FALSE);
 			T->LinkData.Flags |= (CODE_FLAG_IS_RIP_RELATIVE | CODE_FLAG_USES_LABEL);
 		}
 	}
