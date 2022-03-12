@@ -18,6 +18,7 @@
 #define Free free
 
 #define INLINE inline
+#define STATIC static
 #define STDSTRING std::string
 #define STDVECTOR std::vector
 #define STDPAIR std::pair

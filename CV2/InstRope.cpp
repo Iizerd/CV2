@@ -28,6 +28,21 @@ UINT _IrCountLinks(PINST_BLOCK Block)
 	return Count;
 }
 
+PINST_LINK _IrTraceToGroupEnd(PINST_LINK GroupStart, PINST_LINK TraceStop)
+{
+	ULONG Balance = 0;
+	for (PINST_LINK T = GroupStart; T && T != TraceStop->Next; T = T->Next)
+	{
+		if (T->LinkData.Flags & CODE_FLAG_GROUP_START)
+			++Balance;
+		else if (T->LinkData.Flags & CODE_FLAG_GROUP_END)
+			--Balance;
+		else if (Balance == 0)
+			return T;
+	}
+	return NULL;
+}
+
 VOID _IrBuildBlock(PINST_LINK Inst, PINST_BLOCK Block)
 {
 	for (PINST_LINK T = Inst; T; T = T->Prev)
@@ -213,6 +228,17 @@ VOID _IrReplaceBlock2(PINST_BLOCK ParentBlock, PINST_BLOCK Block1, PINST_BLOCK B
 VOID _IrReplaceLinkWithBlock(PINST_BLOCK ParentBlock, PINST_LINK Link, PINST_BLOCK Block)
 {
 	return _IrReplaceBlock(ParentBlock, Link, Link, Block);
+}
+
+PINST_LINK* _IrEnumerateBlock(PINST_BLOCK Block, UINT32 Count)
+{
+	PINST_LINK* EnumArray = (PINST_LINK*)calloc(Count, sizeof(PVOID));
+	if (!EnumArray)
+		return NULL;
+	UINT32 Idx = 0;
+	for (PINST_LINK T = Block->Front; T && T != Block->Back->Next && Idx < Count; T = T->Next)
+		EnumArray[Idx++] = T;
+	return EnumArray;
 }
 
 BOOLEAN _IrGetMinId(PINST_BLOCK Block, PINT32 Id)

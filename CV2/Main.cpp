@@ -32,7 +32,7 @@ int main()
 	//	Block.Front = Block.Back = NULL;
 	//	BmGenerateEmulateRet2(&Block, 1, DEADSTORE_METHOD_MOV);
 	//	UINT AsmSize = 0;
-	//	PVOID Asm = NrAssemble(&Block, &AsmSize);
+	//	PVOID Asm = NrEncode(&Block, &AsmSize);
 
 	//	for (ULONG i = 0; i < AsmSize; i++)
 	//		std::cout << std::setw(2) << std::setfill('0') << std::hex << (INT)((PUCHAR)Asm)[i] << ' '; //printf("%X ", ((PUCHAR)Asm)[i]);
@@ -40,24 +40,39 @@ int main()
 	//}
 
 
-	//NATIVE_BLOCK Block;
-	//Block.Back = Block.Front = NULL;
-	//NrDissasemble(&Block, TestArray, sizeof(TestArray));
-	//NrPromoteAllRelativeJumpsTo32BitDisplacement(&Block);
-	//
+	NATIVE_BLOCK Block;
+	Block.Back = Block.Front = NULL;
+	NrDecode(&Block, TestArray, sizeof(TestArray));
+	NrPromoteAllRelativeJumpsTo32BitDisplacement(&Block);
+	
 
-	//UINT AsmSize = 0;
-	//PVOID Asm = NrAssemble(&Block, &AsmSize);
+	PNATIVE_LINK* EnumArray = (PNATIVE_LINK*)IrEnumerateBlock(&Block, IrCountLinks(&Block));
 
-	//for (ULONG i = 0; i < AsmSize; i++)
-	//	std::cout << std::setw(2) << std::setfill('0') << std::hex << (INT)((PUCHAR)Asm)[i] << ' '; //printf("%X ", ((PUCHAR)Asm)[i]);
-	//printf("\n");
+	PNATIVE_LINK JmpLink = EnumArray[2];
 
-	////NrDebugPrintIClass(&Block);
-	//PFUNCTION_BLOCK FbTree = FbCreateTree(&Block);
-	//FbPrintNotTakenPath(FbTree);
-	//FbFreeTree(FbTree);
-	//system("pause");
+	printf("Iclass for it %s\n", XedIClassEnumToString(XedDecodedInstGetIClass(&JmpLink->DecodedInst)));
+	NATIVE_BLOCK ConvBlock;
+	if (!BmConvertRelativeConditionalJumpToAbsolute(&ConvBlock, JmpLink, 0, 1, 0))
+	{
+		printf("failed to convert jmp.\n");
+		return 0;
+	}
+
+	IrReplaceLinkWithBlock(&Block, JmpLink, &ConvBlock);
+
+	UINT AsmSize = 0;
+	PVOID Asm = NrEncode(&Block, &AsmSize);
+
+	for (ULONG i = 0; i < AsmSize; i++)
+		std::cout << std::setw(2) << std::setfill('0') << std::hex << (INT)((PUCHAR)Asm)[i] << ' '; //printf("%X ", ((PUCHAR)Asm)[i]);
+	printf("\n");
+
+	NrDebugPrintIClass(&Block);
+	/*PFUNCTION_BLOCK FbTree = FbCreateTree(&Block);
+	FbPrintNotTakenPath(FbTree);
+	FbFreeTree(FbTree);*/
+	NrFreeBlock(&Block);
+	system("pause");
 
 	return 1;
 }

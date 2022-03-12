@@ -42,20 +42,17 @@ VOID NrFreeBlock2(PNATIVE_LINK Start, PNATIVE_LINK End)
 
 VOID NrZeroLink(PNATIVE_LINK Link)
 {
-	RtlSecureZeroMemory(Link, sizeof(NATIVE_LINK));
+
 }
 
 VOID NrInitForInst(PNATIVE_LINK Link)
 {
-	
-	RtlSecureZeroMemory(Link, sizeof(NATIVE_LINK));
 	XedDecodedInstZeroSetMode(&Link->DecodedInst, &XedGlobalMachineState);
 	Link->LinkData.Flags |= CODE_FLAG_IS_INST;
 }
 
 VOID NrInitForLabel(PNATIVE_LINK Link, UINT32 Id, PNATIVE_LINK Next, PNATIVE_LINK Prev)
 {
-	RtlSecureZeroMemory(Link, sizeof(NATIVE_LINK));
 	Link->LinkData.Flags |= CODE_FLAG_IS_LABEL;
 	Link->LinkData.Id = Id;
 	Link->Next = Next;
@@ -364,22 +361,28 @@ PREOP_STATUS NrRelativeJumpPreOp(PNATIVE_LINK Link, PVOID Context)
 		return PREOP_RESTART;
 	}
 
-	//A bit hacky ya? Displacement is always going to be the last bits of the jump.
-	UINT BranchDispWidth = XedDecodedInstGetBranchDisplacementWidth(&Link->DecodedInst);
-	switch (BranchDispWidth)
+	if (!XedPatchRelbr(&Link->DecodedInst, (PUCHAR)Link->RawData, XedRelBr(BranchDisp, XedDecodedInstGetBranchDisplacementWidthBits(&Link->DecodedInst))))
 	{
-	case 1: *(PINT8) & (((PUCHAR)Link->RawData)[Link->RawDataSize - BranchDispWidth]) = (INT8)BranchDisp; break;
-	case 2: *(PINT16) & (((PUCHAR)Link->RawData)[Link->RawDataSize - BranchDispWidth]) = (INT16)BranchDisp; break;
-	case 4: *(PINT32) & (((PUCHAR)Link->RawData)[Link->RawDataSize - BranchDispWidth]) = (INT32)BranchDisp; break;
+		MLog("failed to patch relative branch disp.\n");
+		return PREOP_CRITICAL_ERROR;
 	}
+
+	////A bit hacky ya? Displacement is always going to be the last bits of the jump.
+	//UINT BranchDispWidth = XedDecodedInstGetBranchDisplacementWidth(&Link->DecodedInst);
+	//switch (BranchDispWidth)
+	//{
+	//case 1: *(PINT8) & (((PUCHAR)Link->RawData)[Link->RawDataSize - BranchDispWidth]) = (INT8)BranchDisp; break;
+	//case 2: *(PINT16) & (((PUCHAR)Link->RawData)[Link->RawDataSize - BranchDispWidth]) = (INT16)BranchDisp; break;
+	//case 4: *(PINT32) & (((PUCHAR)Link->RawData)[Link->RawDataSize - BranchDispWidth]) = (INT32)BranchDisp; break;
+	//}
 
 	return PREOP_SUCCESS;
 }
 
 PREOP_STATUS NrRipRelativePreOp(PNATIVE_LINK Link, PVOID Context)
 {
-
-	return PREOP_SUCCESS;
+	//Not implemented
+	return PREOP_CRITICAL_ERROR;
 }
 
 BOOLEAN NrIsRelativeJump(PNATIVE_LINK Link)
@@ -426,7 +429,7 @@ BOOLEAN NrIsRipRelativeInstruction(PNATIVE_LINK Link, PINT32 Delta)
 	return FALSE;
 }
 
-BOOLEAN NrHandleSpecialInstructions(PNATIVE_BLOCK Block)
+BOOLEAN NrHandleDisplacementInstructions(PNATIVE_BLOCK Block)
 {
 	INT32 CurrentId = 0;
 
@@ -498,7 +501,12 @@ BOOLEAN NrHandleSpecialInstructions(PNATIVE_BLOCK Block)
 	}
 }
 
-BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
+BOOLEAN NrDecode(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
+{
+	return NrDecodeEx(Block, RawCode, CodeLength, 0UL);
+}
+
+BOOLEAN NrDecodeEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength, UINT32 Flags)
 {
 	if (!CodeLength)
 		return FALSE;
@@ -511,7 +519,7 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 		if (!Link)
 		{
 			NrFreeBlock(Block);
-			MLog("Could not allocate new link in NrDissasemble\n");
+			MLog("Could not allocate new link in NrDecode\n");
 			return FALSE;
 		}
 		NrInitForInst(Link);
@@ -521,12 +529,12 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 		XED_ERROR_ENUM XedError = XedDecode(&Link->DecodedInst, CodePointer, PossibleSize);
 		if (XedError != XED_ERROR_NONE)
 		{
-			MLog("XedDecode failed in NrDissasemble. Error: %s\n", XedErrorEnumToString(XedError));
+			MLog("XedDecode failed in NrDecode. Error: %s\n", XedErrorEnumToString(XedError));
 			NrFreeLink(Link);
 			NrFreeBlock(Block);
 			return FALSE;
 		}
-		
+
 		UINT RawDataSize = XedDecodedInstGetLength(&Link->DecodedInst);
 		PVOID RawData = Allocate(RawDataSize);
 		if (!RawData)
@@ -544,7 +552,7 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 		CodePointer += RawDataSize;
 	}
 
-	if (!NrHandleSpecialInstructions(Block))
+	if (!(Flags & DECODER_FLAG_DONT_GENERATE_OPERATIONS) && !NrHandleDisplacementInstructions(Block))
 	{
 		MLog("Failed to create labels.\n");
 		return FALSE;
@@ -553,7 +561,7 @@ BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
 	return IrCountLinks(Block);
 }
 
-PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
+PVOID NrEncode(PNATIVE_BLOCK Block, PUINT AssembledSize)
 {
 	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next;)
 	{
@@ -589,7 +597,7 @@ PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize)
 	PUCHAR Buffer = (PUCHAR)Allocate(TotalSize);
 	if (!Buffer)
 	{
-		MLog("Could not allocate assembly buffer in NrAssemble. Size:[%u]\n", TotalSize);
+		MLog("Could not allocate assembly buffer in NrEncode. Size:[%u]\n", TotalSize);
 		return NULL;
 	}
 

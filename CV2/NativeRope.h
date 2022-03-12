@@ -6,13 +6,15 @@
 
 struct _NATIVE_LINK;
 
+#define DECODER_FLAG_DONT_GENERATE_OPERATIONS IrGeneralFlag(0)		//Dont generate any pre or post operations for rip rel or branches.
+
 #define CODE_FLAG_IS_REL_JUMP		IrSpecificFlag(0)
 #define CODE_FLAG_IS_RIP_RELATIVE	IrSpecificFlag(1)
 #define CODE_FLAG_IS_JUMP_TARGET	IrSpecificFlag(2)
 
-#define ASMOP_FLAG_FREE_CONTEXT		IrSpecificFlag(3)
+#define ASMOP_FLAG_FREE_CONTEXT		IrGeneralFlag(0)
 
-typedef UINT PREOP_STATUS;
+typedef UINT32 PREOP_STATUS;
 #define PREOP_SUCCESS			0	//Continue to next operation and further instructions
 #define PREOP_RESTART			1	//Go back to the first instruction and start again(most likely a displacement width changed). Try not to ever return this.
 #define PREOP_CRITICAL_ERROR	2	//Cancel assembly completely. Something bad happened
@@ -25,7 +27,7 @@ typedef struct _ASSEMBLY_PREOP
 	UINT32				Flags;
 }ASSEMBLY_PREOP, * PASSEMBLY_PREOP;
 
-typedef UINT POSTOP_STATUS;
+typedef UINT32 POSTOP_STATUS;
 #define POSTOP_SUCCESS			0	//Continue to next operation and further instructions
 #define POSTOP_CRITICAL_ERROR	1	//Cancel assembly completely
 typedef POSTOP_STATUS(*FnAssemblyPostOp)(_NATIVE_LINK* Link, PUCHAR RawData, PVOID Context);
@@ -90,7 +92,7 @@ PNATIVE_LINK NrValidateDelta(PNATIVE_LINK Start, INT32 Delta, PINT32 LeftOver);
 
 BOOLEAN NrCalcRipDelta(PNATIVE_LINK Link, PINT32 DeltaOut);
 
-//It is very slow to promote all jumps one by one as NrAssemble will do if nessicary. Promoting them all now is very fast. This is because you have to iterate through all previous jumps after u change one of them.
+//It is very slow to promote all jumps one by one as NrEncode will do if nessicary. Promoting them all now is very fast. This is because you have to iterate through all previous jumps after u change one of them.
 BOOLEAN NrPromoteAllRelativeJumpsTo32BitDisplacement(PNATIVE_BLOCK Block);
 
 PREOP_STATUS NrRelativeJumpPreOp(PNATIVE_LINK Link, PVOID Context);
@@ -101,12 +103,14 @@ BOOLEAN NrIsRelativeJump(PNATIVE_LINK Link);
 
 BOOLEAN NrIsRipRelativeInstruction(PNATIVE_LINK Link, PINT32 Delta);
 
-BOOLEAN NrHandleSpecialInstructions(PNATIVE_BLOCK Block);
+BOOLEAN NrHandleDisplacementInstructions(PNATIVE_BLOCK Block);
 
-BOOLEAN NrDissasemble(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength);
+BOOLEAN NrDecode(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength);
+
+BOOLEAN NrDecodeEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength, UINT32 Flags);
 
 //For now, you must ensure that all relative jump displacement widths are large enough. I dont know how to handle it if they are not.
-PVOID NrAssemble(PNATIVE_BLOCK Block, PUINT AssembledSize);
+PVOID NrEncode(PNATIVE_BLOCK Block, PUINT AssembledSize);
 
 VOID NrDebugPrintIClass(PNATIVE_BLOCK Block);
 

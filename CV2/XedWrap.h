@@ -102,9 +102,17 @@ extern "C"
 #define XedSimm0 xed_simm0
 #define XedImm0 xed_imm0
 
+#define XedPatchRelbr xed_patch_relbr
+
 inline XED_STATE XedGlobalMachineState;
 
 VOID XedGlobalInit();
+
 PUCHAR XedEncodeInstructions(XED_ENCODER_INSTRUCTION* InstList, UINT InstCount, PUINT OutSize);
+
+XED_ICLASS_ENUM XedJccToCMOVcc(XED_ICLASS_ENUM Jcc);
+
+XED_ICLASS_ENUM XedInvertJcc(XED_ICLASS_ENUM Jcc);
+
 
 #endif
