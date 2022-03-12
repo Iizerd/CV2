@@ -30,6 +30,7 @@ PUCHAR XedEncodeInstructions(XED_ENCODER_INSTRUCTION* InstList, UINT InstCount, 
 			Free(EncodeBuffer);
 			return NULL;
 		}
+		MLog("Encoded %d with class %s with length %d\n", i, XedIClassEnumToString(xed_encoder_request_get_iclass(&EncoderRequest)), ReturnedSize);
 		TotalSize += ReturnedSize;
 	}
 

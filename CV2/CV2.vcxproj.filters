@@ -32,6 +32,9 @@
     <ClCompile Include="RandomAssembly.cpp">
       <Filter>Obfuscator</Filter>
     </ClCompile>
+    <ClCompile Include="Junk.cpp">
+      <Filter>Obfuscator\Techniques</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Windas.h">
@@ -69,6 +72,9 @@
     </ClInclude>
     <ClInclude Include="RandomAssembly.h">
       <Filter>Obfuscator</Filter>
+    </ClInclude>
+    <ClInclude Include="Junk.h">
+      <Filter>Obfuscator\Techniques</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

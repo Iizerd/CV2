@@ -189,8 +189,10 @@ PREOP_STATUS BmAbsJumpLabelFinderPreOp(PNATIVE_LINK Link, PVOID Context)
 
 	BranchDisp += (INT64)Context; //which is the left over bytes if there are any.
 
+	XED_REG_ENUM Reg = XedDecodedInstGetReg(&Link->DecodedInst, XedOperandName(XedInstOperand(XedDecodedInstInst(&Link->DecodedInst), 0)));
+
 	XED_ENCODER_INSTRUCTION InstList;
-	XedInst2(&InstList, XedGlobalMachineState, XED_ICLASS_LEA, 64, XedReg(XED_REG_RAX), XedMemBD(XED_REG_RIP, XedDisp(BranchDisp, 32), 64));
+	XedInst2(&InstList, XedGlobalMachineState, XED_ICLASS_LEA, 64, XedReg(Reg), XedMemBD(XED_REG_RIP, XedDisp(BranchDisp, 32), 64));
 	UINT OutSize = 0;
 	PUCHAR AssembledCode = XedEncodeInstructions(&InstList, 1, &OutSize);
 	if (!AssembledCode || !OutSize)
@@ -385,6 +387,7 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE
 	}
 
 	XED_ENCODER_INSTRUCTION InstList[8];
+
 	XedInst1(&InstList[0], XedGlobalMachineState, XED_ICLASS_PUSH, 64, XedReg(XED_REG_RAX));
 	XedInst1(&InstList[1], XedGlobalMachineState, XED_ICLASS_PUSH, 64, XedReg(XED_REG_RBX));
 	XedInst2(&InstList[2], XedGlobalMachineState, XED_ICLASS_LEA, 64, XedReg(XED_REG_RBX), XedMemBD(XED_REG_RIP, XedDisp(0, 32), 64));
@@ -443,3 +446,110 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE
 
 	return TRUE;
 }
+
+BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, UINT32 NewLabelId, INT64 LeftOver)
+{
+	/*
+	* Same as above but uses CMOVcc to decide which branch to take.
+	*
+	*	- PUSH RAX
+	*	- PUSH RBX
+	*	- LEA RBX,[RIP+TakenDisp]
+	*	- LEA RAX,[RIP+NotTakenDisp]
+	*	- CMOVcc RAX,RBX
+	*	- POP RBX
+	*	- XCHG RAX,[RSP]
+	*	- RET
+	*/
+
+	Block->Front = Block->Back = NULL;
+
+	XED_REG_ENUM Reg1 = (XED_REG_ENUM)(XED_REG_RAX + RndGetRandomNum(0, 15));
+	XED_REG_ENUM Reg2 = Reg1;
+	while (Reg2 == Reg1) Reg2 = (XED_REG_ENUM)(XED_REG_RAX + RndGetRandomNum(0, 15));
+
+	BOOLEAN InvertCMOVcc = RndGetRandomNum<UINT32>(0, 1);
+	BOOLEAN InvertAddressLoadingOrder = RndGetRandomNum<UINT32>(0, 1);
+	XED_ICLASS_ENUM CMOVcc = XED_ICLASS_INVALID;
+	if (InvertCMOVcc)
+		CMOVcc = XedJccToCMOVcc(XedInvertJcc(XedDecodedInstGetIClass(&Jmp->DecodedInst)));
+	else
+		CMOVcc = XedJccToCMOVcc(XedDecodedInstGetIClass(&Jmp->DecodedInst));
+
+	if (CMOVcc == XED_ICLASS_INVALID)
+	{
+		MLog("Could not convert Jcc to CMOVcc.\n");
+		return FALSE;
+	}
+
+	XED_ENCODER_INSTRUCTION InstList[8];
+	XedInst1(&InstList[0], XedGlobalMachineState, XED_ICLASS_PUSH, 64, XedReg(Reg1));
+	XedInst1(&InstList[1], XedGlobalMachineState, XED_ICLASS_PUSH, 64, XedReg(Reg2));
+	if (InvertAddressLoadingOrder)
+	{
+		XedInst2(&InstList[2], XedGlobalMachineState, XED_ICLASS_LEA, 64, XedReg(Reg1), XedMemBD(XED_REG_RIP, XedDisp(0, 32), 64));
+		XedInst2(&InstList[3], XedGlobalMachineState, XED_ICLASS_LEA, 64, XedReg(Reg2), XedMemBD(XED_REG_RIP, XedDisp(0, 32), 64));
+	}
+	else
+	{
+		XedInst2(&InstList[2], XedGlobalMachineState, XED_ICLASS_LEA, 64, XedReg(Reg2), XedMemBD(XED_REG_RIP, XedDisp(0, 32), 64));
+		XedInst2(&InstList[3], XedGlobalMachineState, XED_ICLASS_LEA, 64, XedReg(Reg1), XedMemBD(XED_REG_RIP, XedDisp(0, 32), 64));
+	}
+	if (InvertCMOVcc)
+		XedInst2(&InstList[4], XedGlobalMachineState, CMOVcc, 64, XedReg(Reg2), XedReg(Reg1));
+	else
+		XedInst2(&InstList[4], XedGlobalMachineState, CMOVcc, 64, XedReg(Reg1), XedReg(Reg2));
+	XedInst1(&InstList[5], XedGlobalMachineState, XED_ICLASS_POP, 64, XedReg(Reg2));
+	XedInst2(&InstList[6], XedGlobalMachineState, XED_ICLASS_XCHG, 64, XedMemB(XED_REG_RSP, 64), XedReg(Reg1));
+	XedInst0(&InstList[7], XedGlobalMachineState, XED_ICLASS_RET_NEAR, 64);
+
+	UINT OutSize = 0;
+	PUCHAR AssembledCode = XedEncodeInstructions(InstList, 8, &OutSize);
+	if (!AssembledCode || !OutSize)
+	{
+		MLog("Failed to assembly relative jump replacement.\n");
+		return FALSE;
+	}
+
+	if (!NrDecodeEx(Block, AssembledCode, OutSize, DECODER_FLAG_DONT_GENERATE_OPERATIONS))
+	{
+		MLog("Could not decode relative conditional jump replacement.\n");
+		Free(AssembledCode);
+		return FALSE;
+	}
+	Free(AssembledCode);
+
+	BOOLEAN AlreadyAddedOperations = FALSE;
+	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
+	{
+		T->LinkData.Flags |= CODE_FLAG_IN_GROUP;
+
+		if (!AlreadyAddedOperations && XED_ICLASS_LEA == XedDecodedInstGetIClass(&T->DecodedInst))
+		{
+			T->LinkData.Id = TargetLabelId;
+			T->LinkData.Flags |= CODE_FLAG_USES_LABEL;
+			NrAddPreAssemblyOperation(T, BmAbsJumpLabelFinderPreOp, (PVOID)LeftOver, 0UL, FALSE);
+
+			T->Next->LinkData.Id = NewLabelId;
+			T->Next->LinkData.Flags |= CODE_FLAG_USES_LABEL;
+			NrAddPreAssemblyOperation(T->Next, BmAbsJumpLabelFinderPreOp, NULL, 0UL, FALSE);
+			AlreadyAddedOperations = TRUE;
+		}
+	}
+
+	PNATIVE_LINK NotTakenLabelLink = NrAllocateLink();
+	if (!NotTakenLabelLink)
+	{
+		MLog("Could not allocate label link.\n");
+		NrFreeBlock(Block);
+		return FALSE;
+	}
+	NrInitForLabel(NotTakenLabelLink, NewLabelId, NULL, NULL);
+	IrPutLinkBack(Block, NotTakenLabelLink);
+
+	Block->Front->LinkData.Flags |= CODE_FLAG_GROUP_START;
+	Block->Back->LinkData.Flags |= CODE_FLAG_GROUP_END;
+
+	return TRUE;
+}
+

@@ -27,6 +27,9 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute(PNATIVE_BLOCK Block, PNATIVE_
 //Convert relative conditional jump to absolute one using CMOVcc to edit rip.
 BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, UINT32 NewLabelId, INT64 LeftOver);
 
+//Same as above, but with added "obfuscation" of inverting the CMOVcc if you want
+BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, UINT32 NewLabelId, INT64 LeftOver);
+
 //Maybe do this with flags? but then the jump target must have a popfq when it starts.
 BOOLEAN BmGenerateNonConditionalConditionalBranch(PNATIVE_BLOCK Block);
 

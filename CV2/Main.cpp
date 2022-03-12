@@ -45,20 +45,18 @@ int main()
 	NrDecode(&Block, TestArray, sizeof(TestArray));
 	NrPromoteAllRelativeJumpsTo32BitDisplacement(&Block);
 	
-
-	PNATIVE_LINK* EnumArray = (PNATIVE_LINK*)IrEnumerateBlock(&Block, IrCountLinks(&Block));
-
+	/*PNATIVE_LINK* EnumArray = (PNATIVE_LINK*)IrEnumerateBlock(&Block, IrCountLinks(&Block));
 	PNATIVE_LINK JmpLink = EnumArray[2];
 
-	printf("Iclass for it %s\n", XedIClassEnumToString(XedDecodedInstGetIClass(&JmpLink->DecodedInst)));
 	NATIVE_BLOCK ConvBlock;
-	if (!BmConvertRelativeConditionalJumpToAbsolute(&ConvBlock, JmpLink, 0, 1, 0))
+	if (!BmConvertRelativeConditionalJumpToAbsolute2Randomize(&ConvBlock, JmpLink, 0, 1, 0))
 	{
 		printf("failed to convert jmp.\n");
+		system("pause");
 		return 0;
 	}
 
-	IrReplaceLinkWithBlock(&Block, JmpLink, &ConvBlock);
+	IrReplaceLinkWithBlock(&Block, JmpLink, &ConvBlock);*/
 
 	UINT AsmSize = 0;
 	PVOID Asm = NrEncode(&Block, &AsmSize);
