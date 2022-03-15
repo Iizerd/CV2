@@ -497,132 +497,123 @@ BOOLEAN NrHandleDisplacementInstructions(PNATIVE_BLOCK Block)
 	}
 }
 
-PFUNCTION_BLOCK NrCreateFunctionBlockTree(PNATIVE_BLOCK CodeBlock)
+BOOLEAN NrIsAddressInDecodedBlockRange(INT32 Address, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks)
 {
-	STDVECTOR<PFUNCTION_BLOCK> FunctionBlocks = { };
-
-	if (!CodeBlock->Front || !CodeBlock->Back)
-		return NULL;
-
-	PFUNCTION_BLOCK CurrentBlock = AllocateS(FUNCTION_BLOCK);
-	if (!CurrentBlock)
+	for (PDECODE_BLOCK Block : (*DecodeBlocks))
 	{
-		MLog("Could not allocate memory for first function block.\n");
-		return NULL;
+		if (Address >= Block->StartAddress && Address <= Block->EndAddress)
+			return TRUE;
 	}
-	CurrentBlock->Block.Front = CodeBlock->Front;
-
-	for (PNATIVE_LINK T = CodeBlock->Front; T && T != CodeBlock->Back->Next; T = T->Next)
-	{
-		if ((T->LinkData.Flags & CODE_FLAG_IS_REL_JUMP) ||
-			((T->LinkData.Flags & CODE_FLAG_IS_LABEL) && (T->LinkData.Flags & CODE_FLAG_IS_JUMP_TARGET)))
-		{
-			PFUNCTION_BLOCK NextBlock = AllocateS(FUNCTION_BLOCK);
-			if (!NextBlock)
-			{
-				MLog("Could not allocate memory for next function block.\n");
-				for (PFUNCTION_BLOCK Block : FunctionBlocks)
-					Free(Block);
-				Free(CurrentBlock);
-				return NULL;
-			}
-
-			if (T->LinkData.Flags & CODE_FLAG_IS_REL_JUMP)
-			{
-				NextBlock->Block.Front = T->Next;
-				CurrentBlock->Block.Back = T;
-				CurrentBlock->IsConditional = (ULONG64)(!(XED_ICLASS_JMP == XedDecodedInstGetIClass(&T->DecodedInst)));
-			}
-			else
-			{
-				NextBlock->Block.Front = T;
-				CurrentBlock->Block.Back = T->Prev;
-				CurrentBlock->IsConditional = FALSE;
-			}
-
-			CurrentBlock->Absolute.NextBlock = NextBlock;
-			FunctionBlocks.push_back(CurrentBlock);
-			CurrentBlock = NextBlock;
-		}
-	}
-
-	CurrentBlock->Block.Back = CodeBlock->Back;
-	CurrentBlock->IsConditional = FALSE;
-	FunctionBlocks.push_back(CurrentBlock);
-
-	//Only one block so we just return it.
-	if (FunctionBlocks.size() == 0)
-		return CurrentBlock;
-
-	//Otherwise, fix up conditional jumps by searching for where they jump to!
-	for (UINT32 i = 0; i < FunctionBlocks.size(); i++)
-	{
-		if (FunctionBlocks[i]->IsConditional)
-		{
-			INT32 TargetLabel = FunctionBlocks[i]->Block.Back->LinkData.Id;
-			for (INT j = i + 1; j < FunctionBlocks.size(); j++)
-			{
-				if ((FunctionBlocks[j]->Block.Front->LinkData.Flags & CODE_FLAG_IS_LABEL) &&
-					TargetLabel == FunctionBlocks[j]->Block.Front->LinkData.Id)
-				{
-					FunctionBlocks[i]->Conditional.Taken = FunctionBlocks[j];
-					goto ContinueToNextBlock;
-				}
-
-			}
-			for (INT j = i - 1; j >= 0; j--)
-			{
-				if ((FunctionBlocks[j]->Block.Front->LinkData.Flags & CODE_FLAG_IS_LABEL) &&
-					TargetLabel == FunctionBlocks[j]->Block.Front->LinkData.Id)
-				{
-					FunctionBlocks[i]->Conditional.Taken = FunctionBlocks[j];
-					goto ContinueToNextBlock;
-				}
-			}
-
-			for (PFUNCTION_BLOCK Block : FunctionBlocks)
-				Free(Block);
-			MLog("Failed to find Taken branch of relative jump.\n");
-			return NULL;
-		}
-	ContinueToNextBlock:
-		continue;
-	}
-
-	return FunctionBlocks[0];
+	return FALSE;
 }
 
-VOID NrFreeFunctionBlockTree(PFUNCTION_BLOCK TreeHead)
+BOOLEAN NrGetNextDecodeBlock(INT32 Address, PINT32 OutDelta, PUINT32 OutIndex, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks)
 {
-	if (TreeHead)
+	printf("finding delta to address %d\n", Address);
+	BOOLEAN FoundFirstDelta = FALSE;
+	for (UINT32 i = 0; i < DecodeBlocks->size(); i++)
 	{
-		NrFreeTree(TreeHead->Absolute.NextBlock);
-		Free(TreeHead);
+		INT32 CheckDelta = DecodeBlocks->at(i)->StartAddress - Address;
+
+		printf("check delta is %d\n", CheckDelta);
+		if (CheckDelta >= 0)
+		{
+			if (!FoundFirstDelta)
+			{
+				*OutDelta = CheckDelta;
+				*OutIndex = i;
+				FoundFirstDelta = TRUE;
+			}
+			else if (CheckDelta < *OutDelta)
+			{
+				*OutDelta = CheckDelta;
+				*OutIndex = i;
+			}
+		}
 	}
+	return FoundFirstDelta;
 }
 
-PFUNCTION_BLOCK NrDecodeToEndOfFunctionBlock(PVOID CodeStart)
+PDECODE_BLOCK NrDecodeToBlocks(PUCHAR CodeStart, INT32 StartAddress, PUCHAR CodeEnd, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks)
 {
-	//Decode until we reach a relative jump. then create a block, and decode to that!
-	PFUNCTION_BLOCK Block = AllocateS(FUNCTION_BLOCK);
-	if (!Block)
+	//Decode until we reach a relative jump. then create a block(or two), and decode to that!
+	PDECODE_BLOCK DecodeBlock = AllocateS(DECODE_BLOCK);
+	if (!DecodeBlock)
 	{
 		MLog("Could not allocate function block to decode to.\n");
-		return NULL;
+		return FALSE;
 	}
+	INT32 CurrentAddress = DecodeBlock->StartAddress = StartAddress;
+	PUCHAR CodePointer = CodeStart;
 
-	//Do the decoding
+	//Need to make sure we arn't decoding something we already decoded. That this check here
+	while (CodePointer != CodeEnd && !NrIsAddressInDecodedBlockRange(CurrentAddress, DecodeBlocks))
+	{
+		PNATIVE_LINK Link = NrAllocateLink();
+		if (!Link)
+		{
+			NrFreeBlock(&DecodeBlock->Block);
+			MLog("Could not allocate new link in NrDecodeToEndOfDecodeBlock\n");
+			return NULL;
+		}
+		NrInitForInst(Link);
+		UINT32 PossibleSize = MinVal(15, CodeEnd - CodePointer);
 
+		XedDecodedInstZeroSetMode(&Link->DecodedInst, &XedGlobalMachineState);
+		XED_ERROR_ENUM XedError = XedDecode(&Link->DecodedInst, CodePointer, PossibleSize);
+		if (XedError != XED_ERROR_NONE)
+		{
+			MLog("XedDecode failed in NrDecodeToEndOfDecodeBlock. Error: %s\n", XedErrorEnumToString(XedError));
+			NrFreeLink(Link);
+			NrFreeBlock(&DecodeBlock->Block);
+			Free(DecodeBlock);
+			return NULL;
+		}
 
-	/*
-	* if jump is conditional
-	*	Block->Conditional.Taken = NrDecodeToEndOfFunctionBlock(CalcTakenDelta)
-	*	Block->Conditional.NotTaken = NrDecodeToEndOfFunctionBlock(NextInstruction)
-	* else
-	*   Block->Absolute.NextBlock = NrDecodeToEndOfFunctionBlock(NextInstruction);
-	*/
+		UINT32 RawDataSize = XedDecodedInstGetLength(&Link->DecodedInst);
+		PVOID RawData = Allocate(RawDataSize);
+		if (!RawData)
+		{
+			MLog("Could not allocate space for RawData in NrDecodeToEndOfDecodeBlock\n");
+			NrFreeLink(Link);
+			NrFreeBlock(&DecodeBlock->Block);
+			Free(DecodeBlock);
+			return NULL;
+		}
 
-	return Block;
+		RtlCopyMemory(RawData, CodePointer, RawDataSize);
+		Link->RawData = RawData;
+		Link->RawDataSize = RawDataSize;
+
+		IrPutLinkBack(&DecodeBlock->Block, Link);
+		CodePointer += RawDataSize;
+		CurrentAddress += RawDataSize;
+
+		//Check if its a jump and not its already decoded: recursion and break loop
+		XED_CATEGORY_ENUM Category = XedDecodedInstGetCategory(&Link->DecodedInst);
+		if (Category == XED_CATEGORY_COND_BR || Category == XED_CATEGORY_UNCOND_BR)
+		{
+			MLog("Found branch: %s.\n", XedIClassEnumToString(XedDecodedInstGetIClass(&Link->DecodedInst)));
+			INT32 Displacement = XedDecodedInstGetBranchDisplacement(&Link->DecodedInst);
+			INT32 NextAddress = CurrentAddress + Displacement;
+			if (!NrIsAddressInDecodedBlockRange(NextAddress, DecodeBlocks))
+			{
+				if (Category == XED_CATEGORY_UNCOND_BR)
+					NrDecodeToBlocks(CodePointer + Displacement, NextAddress, CodeEnd, DecodeBlocks);
+				else
+				{
+					NrDecodeToBlocks(CodePointer + Displacement, NextAddress, CodeEnd, DecodeBlocks);
+					NrDecodeToBlocks(CodePointer, CurrentAddress, CodeEnd, DecodeBlocks);
+				}
+			}
+			break;
+		}
+
+	}
+	DecodeBlock->EndAddress = CurrentAddress;
+
+	DecodeBlocks->push_back(DecodeBlock);
+	return DecodeBlock;
 }
 
 BOOLEAN NrDecodeImperfect(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength)
@@ -632,10 +623,81 @@ BOOLEAN NrDecodeImperfect(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength)
 
 BOOLEAN NrDecodeImperfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength, UINT32 Flags)
 {
+	Block->Front = Block->Back = NULL;
+
 	if (!RawCode || !CodeLength)
 		return FALSE;
 
-	
+	STDVECTOR<PDECODE_BLOCK> DecodeBlocks;
+	PDECODE_BLOCK InitialBlock = NrDecodeToBlocks((PUCHAR)RawCode, 0, (PUCHAR)RawCode + CodeLength, &DecodeBlocks);
+	if (!InitialBlock || !DecodeBlocks.size())
+	{
+		MLog("Failed to decode imperfect code to blocks.\n");
+		return FALSE;
+	}
+
+	//for (auto blocksss : DecodeBlocks)
+	//{
+	//	printf("Block start address %d\n", blocksss->StartAddress);
+	//	NrDebugPrintIClass(&blocksss->Block);
+	//	printf("link Count: %u\n\n", IrCountLinks(&blocksss->Block));
+	//}
+
+	//Remove first block because we dont wanna be processing it.
+	DecodeBlocks.pop_back();
+	IrPutBlockBack(Block, &InitialBlock->Block);
+
+	INT32 LastAddress = InitialBlock->EndAddress;
+	Free(InitialBlock);
+	while (DecodeBlocks.size())
+	{
+		UINT32 ClosestIndex;
+		INT32 ClosestDelta;
+		if (!NrGetNextDecodeBlock(LastAddress, &ClosestDelta, &ClosestIndex, &DecodeBlocks))
+		{
+			MLog("Failed to find the next decode block.\n");
+			for (PDECODE_BLOCK DecodeBlock : DecodeBlocks)
+			{
+				NrFreeBlock(&DecodeBlock->Block);
+				Free(DecodeBlock);
+			}
+			NrFreeBlock(Block);
+			return FALSE;
+		}
+
+		if (ClosestDelta != 0) //Handle or instructions that are never reached.
+		{
+			PNATIVE_LINK PadLink = NrAllocateLink();
+			if (!PadLink)
+			{
+				MLog("Failed to allocate pad link.\n");
+				for (PDECODE_BLOCK DecodeBlock : DecodeBlocks)
+				{
+					NrFreeBlock(&DecodeBlock->Block);
+					Free(DecodeBlock);
+				}
+				NrFreeBlock(Block);
+				return FALSE;
+			}
+			PadLink->LinkData.Flags |= CODE_FLAG_IS_RAW_DATA;
+			PadLink->RawData = Allocate(ClosestDelta);
+			PadLink->RawDataSize = ClosestDelta;
+			IrPutLinkBack(Block, PadLink);
+		}
+		LastAddress = DecodeBlocks[ClosestIndex]->EndAddress;
+		IrPutBlockBack(Block, &DecodeBlocks[ClosestIndex]->Block);
+		Free(DecodeBlocks[ClosestIndex]);
+		DecodeBlocks.erase(DecodeBlocks.begin() + ClosestIndex);
+	}
+
+	if (!(Flags & DECODER_FLAG_DONT_GENERATE_OPERATIONS) && !NrHandleDisplacementInstructions(Block))
+	{
+		MLog("Failed to create labels.\n");
+		NrFreeBlock(Block);
+		return FALSE;
+	}
+
+	return IrCountLinks(Block);
 }
 
 BOOLEAN NrDecodePerfect(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength)
@@ -645,6 +707,8 @@ BOOLEAN NrDecodePerfect(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength)
 
 BOOLEAN NrDecodePerfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength, UINT32 Flags)
 {
+	Block->Front = Block->Back = NULL;
+
 	if (!RawCode || !CodeLength)
 		return FALSE;
 
@@ -676,7 +740,7 @@ BOOLEAN NrDecodePerfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength,
 		PVOID RawData = Allocate(RawDataSize);
 		if (!RawData)
 		{
-			MLog("Could not allocate space for RawData in NrDissassemble\n");
+			MLog("Could not allocate space for RawData in NrDecodeEx\n");
 			NrFreeLink(Link);
 			NrFreeBlock(Block);
 			return FALSE;
@@ -692,6 +756,7 @@ BOOLEAN NrDecodePerfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength,
 	if (!(Flags & DECODER_FLAG_DONT_GENERATE_OPERATIONS) && !NrHandleDisplacementInstructions(Block))
 	{
 		MLog("Failed to create labels.\n");
+		NrFreeBlock(Block);
 		return FALSE;
 	}
 
@@ -783,34 +848,15 @@ VOID NrDebugPrintIClass(PNATIVE_BLOCK Block)
 				printf(" %d", T->LinkData.Id);
 			printf("\n");
 		}
+		else if (T->LinkData.Flags & CODE_FLAG_IS_RAW_DATA)
+		{
+			printf("Raw Data.\n");
+		}
 		else
 		{
 			printf("Unknown Link.\n");
 		}
 
-	}
-}
-
-VOID NrPrintTakenPath(PFUNCTION_BLOCK TreeHead)
-{
-	while (TreeHead)
-	{
-		NrDebugPrintIClass(&TreeHead->Block);
-		if (TreeHead->IsConditional)
-			TreeHead = TreeHead->Conditional.Taken;
-		else
-			TreeHead = TreeHead->Absolute.NextBlock;
-		printf("\n");
-	}
-}
-
-VOID NrPrintNotTakenPath(PFUNCTION_BLOCK TreeHead)
-{
-	while (TreeHead)
-	{
-		NrDebugPrintIClass(&TreeHead->Block);
-		TreeHead = TreeHead->Absolute.NextBlock;
-		printf("\n");
 	}
 }
 

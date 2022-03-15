@@ -25,6 +25,7 @@
 #define STDPAIR std::pair
 #define STDMUTEX std::mutex
 #define StdFind std::find
+#define StdSwap std::swap
 #define STATIC_ASSERT static_assert
 
 #define MinVal min

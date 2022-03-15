@@ -35,23 +35,23 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 			{
 				NextBlock->Block.Front = T->Next;
 				CurrentBlock->Block.Back = T;
-				CurrentBlock->Conditional = (ULONG64)(!(XED_ICLASS_JMP == XedDecodedInstGetIClass(&T->DecodedInst)));
+				CurrentBlock->IsConditional = (ULONG64)(!(XED_ICLASS_JMP == XedDecodedInstGetIClass(&T->DecodedInst)));
 			}
 			else
 			{
 				NextBlock->Block.Front = T;
 				CurrentBlock->Block.Back = T->Prev;
-				CurrentBlock->Conditional = FALSE;
+				CurrentBlock->IsConditional = FALSE;
 			}
 
-			CurrentBlock->NotTaken = NextBlock;
+			CurrentBlock->Absolute.NextBlock = NextBlock;
 			FunctionBlocks.push_back(CurrentBlock);
 			CurrentBlock = NextBlock;
 		}
 	}
 
 	CurrentBlock->Block.Back = CodeBlock->Back;
-	CurrentBlock->Conditional = FALSE;
+	CurrentBlock->IsConditional = FALSE;
 	FunctionBlocks.push_back(CurrentBlock);
 
 	//Only one block so we just return it.
@@ -61,7 +61,7 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 	//Otherwise, fix up conditional jumps by searching for where they jump to!
 	for (UINT32 i = 0; i < FunctionBlocks.size(); i++)
 	{
-		if (FunctionBlocks[i]->Conditional)
+		if (FunctionBlocks[i]->IsConditional)
 		{
 			INT32 TargetLabel = FunctionBlocks[i]->Block.Back->LinkData.Id;
 			for (INT j = i + 1; j < FunctionBlocks.size(); j++)
@@ -69,7 +69,7 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 				if ((FunctionBlocks[j]->Block.Front->LinkData.Flags & CODE_FLAG_IS_LABEL) && 
 					TargetLabel == FunctionBlocks[j]->Block.Front->LinkData.Id)
 				{
-					FunctionBlocks[i]->Taken = FunctionBlocks[j];
+					FunctionBlocks[i]->Conditional.Taken = FunctionBlocks[j];
 					goto ContinueToNextBlock;
 				}
 
@@ -79,7 +79,7 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 				if ((FunctionBlocks[j]->Block.Front->LinkData.Flags & CODE_FLAG_IS_LABEL) &&
 					TargetLabel == FunctionBlocks[j]->Block.Front->LinkData.Id)
 				{
-					FunctionBlocks[i]->Taken = FunctionBlocks[j];
+					FunctionBlocks[i]->Conditional.Taken = FunctionBlocks[j];
 					goto ContinueToNextBlock;
 				}
 			}
@@ -105,9 +105,9 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 
 BOOLEAN FbMakeFunctionBlockPositionIndependent(PFUNCTION_BLOCK FunctionBlock, UINT32 LabelId)
 {
-	PFUNCTION_BLOCK NotTaken = FunctionBlock->NotTaken;
+	PFUNCTION_BLOCK NotTaken = FunctionBlock->Absolute.NextBlock;
 
-	if (FunctionBlock->Conditional)
+	if (FunctionBlock->IsConditional)
 	{
 
 	}
@@ -126,10 +126,10 @@ VOID FbPrintTakenPath(PFUNCTION_BLOCK TreeHead)
 	while (TreeHead)
 	{
 		NrDebugPrintIClass(&TreeHead->Block);
-		if (TreeHead->Conditional)
-			TreeHead = TreeHead->Taken;
+		if (TreeHead->IsConditional)
+			TreeHead = TreeHead->Conditional.Taken;
 		else
-			TreeHead = TreeHead->NotTaken;
+			TreeHead = TreeHead->Absolute.NextBlock;
 		printf("\n");
 	}
 }
@@ -139,7 +139,7 @@ VOID FbPrintNotTakenPath(PFUNCTION_BLOCK TreeHead)
 	while (TreeHead)
 	{
 		NrDebugPrintIClass(&TreeHead->Block);
-		TreeHead = TreeHead->NotTaken;
+		TreeHead = TreeHead->Absolute.NextBlock;
 		printf("\n");
 	}
 }
@@ -148,7 +148,7 @@ VOID FbFreeTree(PFUNCTION_BLOCK TreeHead)
 {
 	if (TreeHead)
 	{
-		FbFreeTree(TreeHead->NotTaken);
+		FbFreeTree(TreeHead->Absolute.NextBlock);
 		Free(TreeHead);
 	}
 }

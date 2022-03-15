@@ -16,14 +16,16 @@ int main()
 	srand(time(NULL));
 	XedGlobalInit();
 
+	NATIVE_BLOCK Block;
+	Block.Front = Block.Back = NULL;
+	NrDecodeImperfect(&Block, TestArray, sizeof(TestArray));
+	NrPromoteAllRelativeJumpsTo32BitDisplacement(&Block);
+	
+	NrDebugPrintIClass(&Block);
 
-	UCHAR Buffer[15];
-
-	for (int i = 0; i < 15; i++)
-	{
-		XED_ERROR_ENUM XedErr = xed_encode_nop(Buffer, i);
-		printf("%d : %s\n", i, XedErrorEnumToString(XedErr));
-	}
+	NrFreeBlock(&Block);
+	
+	printf("\n\n");
 
 	for (int i = 0; i < 5; i++)
 	{
@@ -38,12 +40,11 @@ int main()
 		printf("\n");
 	}
 	
-
-	//NATIVE_BLOCK Block;
-	//Block.Back = Block.Front = NULL;
-	//NrDecodePerfect(&Block, TestArray, sizeof(TestArray));
+	/*NATIVE_BLOCK Block;
+	Block.Back = Block.Front = NULL;
+	NrDecodePerfect(&Block, TestArray, sizeof(TestArray));*/
 	//NrPromoteAllRelativeJumpsTo32BitDisplacement(&Block);
-	//
+	
 	//PNATIVE_LINK* EnumArray = (PNATIVE_LINK*)IrEnumerateBlock(&Block, IrCountLinks(&Block));
 	//PNATIVE_LINK JmpLink = EnumArray[2];
 

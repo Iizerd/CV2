@@ -141,10 +141,10 @@ VOID _IrInsertLinkBefore(PINST_BLOCK ParentBlock, PINST_LINK Inst1, PINST_LINK I
 
 VOID _IrPutBlockBack(PINST_BLOCK Block1, PINST_BLOCK Block2)
 {
-	if (!((UINT64)Block1->Front | (UINT64)Block1->Back))
+	if (!((UINT64)Block1->Front | (UINT64)Block1->Back)) //Makes me think im lackin
 	{
-		Block2->Front = Block1->Front;
-		Block2->Back = Block1->Back;
+		Block1->Front = Block2->Front;
+		Block1->Back = Block2->Back;
 	}
 	else
 	{

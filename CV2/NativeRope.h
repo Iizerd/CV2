@@ -58,26 +58,12 @@ typedef struct _NATIVE_BLOCK
 	PNATIVE_LINK Back;
 }NATIVE_BLOCK, *PNATIVE_BLOCK;
 
-typedef struct _FUNCTION_BLOCK
+typedef struct _DECODE_BLOCK
 {
 	NATIVE_BLOCK Block;
-	union
-	{
-		ULONG64 IsConditional;
-		struct
-		{
-			_FUNCTION_BLOCK* Taken;
-			_FUNCTION_BLOCK* NotTaken;
-		}Conditional;
-		struct
-		{
-			ULONG64 Dummy;
-			_FUNCTION_BLOCK* NextBlock;
-		}Absolute;
-	};
-}FUNCTION_BLOCK, * PFUNCTION_BLOCK;
-
-
+	INT32 StartAddress;		//These two are only used when decoding instructions
+	INT32 EndAddress;
+}DECODE_BLOCK, * PDECODE_BLOCK;
 #define NrAllocateLink() AllocateS(NATIVE_LINK)
 
 VOID NrFreeLink(PNATIVE_LINK Link);
@@ -124,18 +110,15 @@ BOOLEAN NrIsRipRelativeInstruction(PNATIVE_LINK Link, PINT32 Delta);
 
 BOOLEAN NrHandleDisplacementInstructions(PNATIVE_BLOCK Block);
 
-//Create a tree that represents the flow of a NATIVE_BLOCK
-PFUNCTION_BLOCK NrCreateFunctionBlockTree(PNATIVE_BLOCK Block);
+BOOLEAN NrIsAddressInDecodedBlockRange(INT32 Address, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks);
 
-//Frees the tree by iterating the NotTaken path, which goes straight through the code. Even after obfuscation(MAKE SURE THIS STILL WORKS AFTER MOVING THINGS AROUND)
-VOID NrFreeFunctionBlockTree(PFUNCTION_BLOCK TreeHead);
+BOOLEAN NrGetNextDecodeBlock(INT32 Address, PINT32 OutDelta, PUINT32 OutIndex, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks);
 
 //Decodes until it descovers a jump, at which point it recursively calls itself to generate the next block, at the delta by the jump.
-PFUNCTION_BLOCK NrDecodeToEndOfFunctionBlock(PVOID CodeStart);
+PDECODE_BLOCK NrDecodeToBlocks(PUCHAR CodeStart, INT32 StartAddress, PUCHAR CodeEnd, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks);
 
 //The imperfect decoder is for when you cant confirm that the instructions all come one after another. If there might be padding somewhere, use this.
 //This will not decode multiple functions because the second function wont be referenced by a relative jump in the first one.
-//These functions do not generate actual "function blocks" because labels are not accounted for, and are only created after the fact unless the flag DECODER_FLAG_DONT_GENERATE_OPERATIONS is specified.
 BOOLEAN NrDecodeImperfect(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength);
 
 BOOLEAN NrDecodeImperfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength, UINT32 Flags);
@@ -148,10 +131,6 @@ BOOLEAN NrDecodePerfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength,
 PVOID NrEncode(PNATIVE_BLOCK Block, PUINT32 AssembledSize);
 
 VOID NrDebugPrintIClass(PNATIVE_BLOCK Block);
-
-VOID NrPrintTakenPath(PFUNCTION_BLOCK TreeHead);
-
-VOID NrPrintNotTakenPath(PFUNCTION_BLOCK TreeHead);
 
 BOOLEAN NrAreFlagsClobbered(PNATIVE_LINK Start, PNATIVE_LINK End);
 
