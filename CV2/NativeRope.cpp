@@ -40,11 +40,6 @@ VOID NrFreeBlock2(PNATIVE_LINK Start, PNATIVE_LINK End)
 	}
 }
 
-VOID NrZeroLink(PNATIVE_LINK Link)
-{
-
-}
-
 VOID NrInitForInst(PNATIVE_LINK Link)
 {
 	XedDecodedInstZeroSetMode(&Link->DecodedInst, &XedGlobalMachineState);
@@ -337,7 +332,7 @@ PREOP_STATUS NrRelativeJumpPreOp(PNATIVE_LINK Link, PVOID Context)
 	BranchDisp += (INT64)Context;
 
 	//If it takes more bits than available to represent current displacement
-	if (log2(abs(BranchDisp)) + 1 > XedDecodedInstGetBranchDisplacementWidthBits(&Link->DecodedInst))
+	if (XedSignedDispNeededWidth(BranchDisp) > XedDecodedInstGetBranchDisplacementWidthBits(&Link->DecodedInst))
 	{
 		UINT BranchInstSize = 0;
 		XED_ICLASS_ENUM IClass = XedDecodedInstGetIClass(&Link->DecodedInst);

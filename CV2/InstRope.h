@@ -12,7 +12,7 @@
 #define CODE_FLAG_IS_INST		IrGeneralFlag(0)
 #define CODE_FLAG_IS_LABEL		IrGeneralFlag(1) 
 #define CODE_FLAG_IS_RAW_DATA	IrGeneralFlag(2)
-#define CODE_FLAG_GROUP_START	IrGeneralFlag(3) //Specifies start of a group
+#define CODE_FLAG_GROUP_START	IrGeneralFlag(3) //Specifies start of an inseparable group
 #define CODE_FLAG_GROUP_END		IrGeneralFlag(4) //End of a group
 #define CODE_FLAG_IN_GROUP		IrGeneralFlag(5) //Everything between and including start/end of a group have this. Must all be treated as an inseparable block.
 #define CODE_FLAG_USES_LABEL	IrGeneralFlag(6)

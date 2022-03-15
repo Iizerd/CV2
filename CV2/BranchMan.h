@@ -16,7 +16,7 @@ BOOLEAN BmGenerateEmulateRet1(PNATIVE_BLOCK Block, UINT JunkSize);
 //Deadstores 0xc3 somewhere ahead of a jump, make relative jump to it.
 BOOLEAN BmGenerateEmulateRet2(PNATIVE_BLOCK Block, UINT JunkSize, UINT DeadstoreMethod);
 
-PREOP_STATUS BmAbsJumpLabelFinderPreOp(PNATIVE_LINK Link, PVOID Context);
+PREOP_STATUS BmInternalRipDeltaFinder(PNATIVE_LINK Link, PVOID Context);
 
 //Convert relative non conditional jump to absolute one.
 BOOLEAN BmConvertRelativeNonConditionalJumpToAbsolute(PNATIVE_BLOCK Block, INT32 TargetLabelId, INT64 LeftOver);

@@ -178,7 +178,7 @@ BOOLEAN BmGenerateEmulateRet2(PNATIVE_BLOCK Block, UINT JunkSize, UINT Deadstore
 	return TRUE;
 }
 
-PREOP_STATUS BmAbsJumpLabelFinderPreOp(PNATIVE_LINK Link, PVOID Context)
+PREOP_STATUS BmInternalRipDeltaFinder(PNATIVE_LINK Link, PVOID Context)
 {
 	INT32 BranchDisp = 0;
 	if (!NrCalcRipDelta(Link, &BranchDisp))
@@ -254,7 +254,7 @@ BOOLEAN BmConvertRelativeNonConditionalJumpToAbsolute(PNATIVE_BLOCK Block, INT32
 		{
 			T->LinkData.Id = TargetLabelId;
 			T->LinkData.Flags |= CODE_FLAG_USES_LABEL;
-			NrAddPreAssemblyOperation(T, BmAbsJumpLabelFinderPreOp, (PVOID)LeftOver, 0UL, FALSE);
+			NrAddPreAssemblyOperation(T, BmInternalRipDeltaFinder, (PVOID)LeftOver, 0UL, FALSE);
 		}
 	}
 
@@ -422,11 +422,11 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE
 		{
 			T->LinkData.Id = TargetLabelId;
 			T->LinkData.Flags |= CODE_FLAG_USES_LABEL;
-			NrAddPreAssemblyOperation(T, BmAbsJumpLabelFinderPreOp, (PVOID)LeftOver, 0UL, FALSE);
+			NrAddPreAssemblyOperation(T, BmInternalRipDeltaFinder, (PVOID)LeftOver, 0UL, FALSE);
 
 			T->Next->LinkData.Id = NewLabelId;
 			T->Next->LinkData.Flags |= CODE_FLAG_USES_LABEL;
-			NrAddPreAssemblyOperation(T->Next, BmAbsJumpLabelFinderPreOp, NULL, 0UL, FALSE);
+			NrAddPreAssemblyOperation(T->Next, BmInternalRipDeltaFinder, NULL, 0UL, FALSE);
 			AlreadyAddedOperations = TRUE;
 		}
 	}
@@ -464,18 +464,17 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block
 
 	Block->Front = Block->Back = NULL;
 
+	//Break basic pattern scanning by mixing up what registers are used.
 	XED_REG_ENUM Reg1 = (XED_REG_ENUM)(XED_REG_RAX + RndGetRandomNum(0, 15));
 	XED_REG_ENUM Reg2 = Reg1;
 	while (Reg2 == Reg1) Reg2 = (XED_REG_ENUM)(XED_REG_RAX + RndGetRandomNum(0, 15));
 
+	//Invert the condition code for the mov.
 	BOOLEAN InvertCMOVcc = RndGetRandomNum<UINT32>(0, 1);
-	BOOLEAN InvertAddressLoadingOrder = RndGetRandomNum<UINT32>(0, 1);
-	XED_ICLASS_ENUM CMOVcc = XED_ICLASS_INVALID;
-	if (InvertCMOVcc)
-		CMOVcc = XedJccToCMOVcc(XedInvertJcc(XedDecodedInstGetIClass(&Jmp->DecodedInst)));
-	else
-		CMOVcc = XedJccToCMOVcc(XedDecodedInstGetIClass(&Jmp->DecodedInst));
 
+	//Invert the order in which we load the jump targets, a BIT more difficult to make an automated tool to replace all this?
+	BOOLEAN InvertAddressLoadingOrder = RndGetRandomNum<UINT32>(0, 1);
+	XED_ICLASS_ENUM CMOVcc =  XedJccToCMOVcc(InvertCMOVcc ? XedInvertJcc(XedDecodedInstGetIClass(&Jmp->DecodedInst)) : XedDecodedInstGetIClass(&Jmp->DecodedInst));
 	if (CMOVcc == XED_ICLASS_INVALID)
 	{
 		MLog("Could not convert Jcc to CMOVcc.\n");
@@ -528,15 +527,21 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block
 		{
 			T->LinkData.Id = TargetLabelId;
 			T->LinkData.Flags |= CODE_FLAG_USES_LABEL;
-			NrAddPreAssemblyOperation(T, BmAbsJumpLabelFinderPreOp, (PVOID)LeftOver, 0UL, FALSE);
+			NrAddPreAssemblyOperation(T, BmInternalRipDeltaFinder, (PVOID)LeftOver, 0UL, FALSE);
 
 			T->Next->LinkData.Id = NewLabelId;
 			T->Next->LinkData.Flags |= CODE_FLAG_USES_LABEL;
-			NrAddPreAssemblyOperation(T->Next, BmAbsJumpLabelFinderPreOp, NULL, 0UL, FALSE);
+			NrAddPreAssemblyOperation(T->Next, BmInternalRipDeltaFinder, NULL, 0UL, FALSE);
 			AlreadyAddedOperations = TRUE;
 		}
 	}
 
+
+	Block->Front->LinkData.Flags |= CODE_FLAG_GROUP_START;
+	Block->Back->LinkData.Flags |= CODE_FLAG_GROUP_END;
+
+	//Label is not included in the group because the delta can be resolved whenever.
+	//So it can be moved around, and likely will. Great opportunity to put a fake prologue right after the above RET.
 	PNATIVE_LINK NotTakenLabelLink = NrAllocateLink();
 	if (!NotTakenLabelLink)
 	{
@@ -544,11 +549,10 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block
 		NrFreeBlock(Block);
 		return FALSE;
 	}
+
 	NrInitForLabel(NotTakenLabelLink, NewLabelId, NULL, NULL);
 	IrPutLinkBack(Block, NotTakenLabelLink);
 
-	Block->Front->LinkData.Flags |= CODE_FLAG_GROUP_START;
-	Block->Back->LinkData.Flags |= CODE_FLAG_GROUP_END;
 
 	return TRUE;
 }

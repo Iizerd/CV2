@@ -4,7 +4,7 @@
 #include "NativeRope.h"
 #include "FunctionBlock.h"
 #include "BranchMan.h"
-
+#include "Junk.h"
 #include <iomanip>
 
 UCHAR TestArray[] = { 0x48, 0x09, 0xC0, 0x48, 0x09, 0xC0, 0x75, 0x06, 0x48, 0x21, 0xDB, 0x48, 0x21, 0xDB, 0x48, 0x31, 0xC9, 0x48, 0x31, 0xC9 };
@@ -17,59 +17,56 @@ int main()
 	XedGlobalInit();
 
 
-	//UINT OutSize = 0;
-	//PUCHAR Result = XedEncodeInstructions(InstList, 10, &OutSize);
-	//if (Result && OutSize)
-	//{
-	//	for (ULONG i = 0; i < OutSize; i++)
-	//		std::cout << std::setw(2) << std::setfill('0') << std::hex << (INT)((PUCHAR)Result)[i] << ' '; //printf("%X ", ((PUCHAR)Asm)[i]);
-	//	printf("\n");
-	//}
+	UCHAR Buffer[15];
 
-	//for (int i = 0; i < 10; i++)
-	//{
-	//	NATIVE_BLOCK Block;
-	//	Block.Front = Block.Back = NULL;
-	//	BmGenerateEmulateRet2(&Block, 1, DEADSTORE_METHOD_MOV);
-	//	UINT AsmSize = 0;
-	//	PVOID Asm = NrEncode(&Block, &AsmSize);
-
-	//	for (ULONG i = 0; i < AsmSize; i++)
-	//		std::cout << std::setw(2) << std::setfill('0') << std::hex << (INT)((PUCHAR)Asm)[i] << ' '; //printf("%X ", ((PUCHAR)Asm)[i]);
-	//	printf("\n");
-	//}
-
-
-	NATIVE_BLOCK Block;
-	Block.Back = Block.Front = NULL;
-	NrDecode(&Block, TestArray, sizeof(TestArray));
-	NrPromoteAllRelativeJumpsTo32BitDisplacement(&Block);
-	
-	/*PNATIVE_LINK* EnumArray = (PNATIVE_LINK*)IrEnumerateBlock(&Block, IrCountLinks(&Block));
-	PNATIVE_LINK JmpLink = EnumArray[2];
-
-	NATIVE_BLOCK ConvBlock;
-	if (!BmConvertRelativeConditionalJumpToAbsolute2Randomize(&ConvBlock, JmpLink, 0, 1, 0))
+	for (int i = 0; i < 15; i++)
 	{
-		printf("failed to convert jmp.\n");
-		system("pause");
-		return 0;
+		XED_ERROR_ENUM XedErr = xed_encode_nop(Buffer, i);
+		printf("%d : %s\n", i, XedErrorEnumToString(XedErr));
 	}
 
-	IrReplaceLinkWithBlock(&Block, JmpLink, &ConvBlock);*/
+	for (int i = 0; i < 5; i++)
+	{
+		NATIVE_BLOCK Block;
+		Block.Front = Block.Back = NULL;
+		JnkGenerateFunctionPrologue(&Block, i, 128, FALSE);
+		UINT AsmSize = 0;
+		PVOID Asm = NrEncode(&Block, &AsmSize);
 
-	UINT AsmSize = 0;
-	PVOID Asm = NrEncode(&Block, &AsmSize);
+		for (ULONG i = 0; i < AsmSize; i++)
+			std::cout << std::setw(2) << std::setfill('0') << std::hex << (INT)((PUCHAR)Asm)[i] << ' '; //printf("%X ", ((PUCHAR)Asm)[i]);
+		printf("\n");
+	}
+	
 
-	for (ULONG i = 0; i < AsmSize; i++)
-		std::cout << std::setw(2) << std::setfill('0') << std::hex << (INT)((PUCHAR)Asm)[i] << ' '; //printf("%X ", ((PUCHAR)Asm)[i]);
-	printf("\n");
+	//NATIVE_BLOCK Block;
+	//Block.Back = Block.Front = NULL;
+	//NrDecode(&Block, TestArray, sizeof(TestArray));
+	//NrPromoteAllRelativeJumpsTo32BitDisplacement(&Block);
+	//
+	//PNATIVE_LINK* EnumArray = (PNATIVE_LINK*)IrEnumerateBlock(&Block, IrCountLinks(&Block));
+	//PNATIVE_LINK JmpLink = EnumArray[2];
 
-	NrDebugPrintIClass(&Block);
-	/*PFUNCTION_BLOCK FbTree = FbCreateTree(&Block);
-	FbPrintNotTakenPath(FbTree);
-	FbFreeTree(FbTree);*/
-	NrFreeBlock(&Block);
+	//NATIVE_BLOCK ConvBlock;
+	//if (!BmConvertRelativeConditionalJumpToAbsolute(&ConvBlock, JmpLink, 0, 1, 0))
+	//{
+	//	printf("failed to convert jmp.\n");
+	//	system("pause");
+	//	return 0;
+	//}
+
+	//IrReplaceLinkWithBlock(&Block, JmpLink, &ConvBlock);
+
+	//NrFreeLink(JmpLink);
+
+	//UINT AsmSize = 0;
+	//PVOID Asm = NrEncode(&Block, &AsmSize);
+
+	//for (ULONG i = 0; i < AsmSize; i++)
+	//	std::cout << std::setw(2) << std::setfill('0') << std::hex << (INT)((PUCHAR)Asm)[i] << ' '; //printf("%X ", ((PUCHAR)Asm)[i]);
+	//printf("\n");
+
+	//NrFreeBlock(&Block);
 	system("pause");
 
 	return 1;

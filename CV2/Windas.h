@@ -14,6 +14,7 @@
 #include <mutex>
 
 #define Allocate malloc
+#define Realloc realloc
 #define AllocateS(StructType) (StructType*)calloc(1, sizeof(StructType))
 #define Free free
 

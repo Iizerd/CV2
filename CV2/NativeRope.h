@@ -66,8 +66,6 @@ VOID NrFreeBlock(PNATIVE_BLOCK Block);
 
 VOID NrFreeBlock2(PNATIVE_LINK Start, PNATIVE_LINK End);
 
-VOID NrZeroLink(PNATIVE_LINK Link);
-
 VOID NrInitForInst(PNATIVE_LINK Link);
 
 VOID NrInitForLabel(PNATIVE_LINK Link, UINT32 Id, PNATIVE_LINK Next, PNATIVE_LINK Prev);
@@ -105,11 +103,12 @@ BOOLEAN NrIsRipRelativeInstruction(PNATIVE_LINK Link, PINT32 Delta);
 
 BOOLEAN NrHandleDisplacementInstructions(PNATIVE_BLOCK Block);
 
+//TODO: rework so that we can handle potential padding in the middle of functions.
+//This means following jumps and what not
 BOOLEAN NrDecode(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength);
 
 BOOLEAN NrDecodeEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength, UINT32 Flags);
 
-//For now, you must ensure that all relative jump displacement widths are large enough. I dont know how to handle it if they are not.
 PVOID NrEncode(PNATIVE_BLOCK Block, PUINT AssembledSize);
 
 VOID NrDebugPrintIClass(PNATIVE_BLOCK Block);

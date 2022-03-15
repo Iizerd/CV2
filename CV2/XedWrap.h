@@ -85,6 +85,7 @@ extern "C"
 #define XedEncoderRequestZeroSetMode xed_encoder_request_zero_set_mode
 #define XedConvertToEncoderRequest xed_convert_to_encoder_request
 #define XedEncode xed_encode
+#define XedEncodeNop xed_encode_nop
 #define XedInst xed_inst
 #define XedInst0 xed_inst0
 #define XedInst1 xed_inst1
@@ -114,5 +115,8 @@ XED_ICLASS_ENUM XedJccToCMOVcc(XED_ICLASS_ENUM Jcc);
 
 XED_ICLASS_ENUM XedInvertJcc(XED_ICLASS_ENUM Jcc);
 
+UINT32 XedCalcWidthBits(LONGLONG Displacement);
+
+UINT32 XedSignedDispNeededWidth(LONGLONG Displacement);
 
 #endif

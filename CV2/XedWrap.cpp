@@ -14,38 +14,37 @@ PUCHAR XedEncodeInstructions(XED_ENCODER_INSTRUCTION* InstList, UINT InstCount, 
 	XED_ENCODER_REQUEST EncoderRequest;
 	UINT ReturnedSize = 0;
 	UINT TotalSize = 0;
-	XED_ERROR_ENUM Err = XED_ERROR_NONE;
+	XED_ERROR_ENUM XedError = XED_ERROR_GENERAL_ERROR;
 
 	*OutSize = 0;
 	PUCHAR EncodeBuffer = (PUCHAR)Allocate(InstCount * 15);
 	if (!EncodeBuffer)
+	{
+		MLog("Cound not allocate memory for encoder buffer.\n");
 		return NULL;
+	}
 
 	for (UINT i = 0; i < InstCount; i++)
 	{
 		XedEncoderRequestZeroSetMode(&EncoderRequest, &XedGlobalMachineState);
-		if (!XedConvertToEncoderRequest(&EncoderRequest, &InstList[i]) || XED_ERROR_NONE != (Err = XedEncode(&EncoderRequest, &EncodeBuffer[TotalSize], 15, &ReturnedSize)))
+		if (!XedConvertToEncoderRequest(&EncoderRequest, &InstList[i]) || XED_ERROR_NONE != (XedError = XedEncode(&EncoderRequest, &EncodeBuffer[TotalSize], 15, &ReturnedSize)))
 		{
-			MLog("Error encoding instruction: %u, %s\n", i, XedErrorEnumToString(Err));
+			MLog("Error encoding instruction: %u, %s\n", i, XedErrorEnumToString(XedError));
 			Free(EncodeBuffer);
 			return NULL;
 		}
-		MLog("Encoded %d with class %s with length %d\n", i, XedIClassEnumToString(xed_encoder_request_get_iclass(&EncoderRequest)), ReturnedSize);
 		TotalSize += ReturnedSize;
 	}
 
-	PUCHAR RetBuffer = (PUCHAR)Allocate(TotalSize);
-	if (!RetBuffer)
+	PUCHAR FinalBuffer = (PUCHAR)Realloc(EncodeBuffer, TotalSize);
+	if (!FinalBuffer)
 	{
 		MLog("Could not allocate memory for return buffer in XedEncodeInstructions");
 		Free(EncodeBuffer);
 		return NULL;
 	}
-
-	RtlCopyMemory(RetBuffer, EncodeBuffer, TotalSize);
-	Free(EncodeBuffer);
 	*OutSize = TotalSize;
-	return RetBuffer;
+	return FinalBuffer;
 }
 
 XED_ICLASS_ENUM XedJccToCMOVcc(XED_ICLASS_ENUM Jcc)
@@ -100,3 +99,17 @@ XED_ICLASS_ENUM XedInvertJcc(XED_ICLASS_ENUM Jcc)
 	default: return XED_ICLASS_INVALID;
 	}
 }
+
+UINT32 XedCalcWidthBits(LONGLONG Displacement)
+{
+	return log2(abs(Displacement)) + 1;
+}
+
+UINT32 XedSignedDispNeededWidth(LONGLONG Displacement)
+{
+	ULONGLONG AbsDisp = abs(Displacement);
+	if ((Displacement <= 0 && AbsDisp < 129) || (Displacement > 0 && AbsDisp < 128))
+		return 8;
+	return 32;
+}
+
