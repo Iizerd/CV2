@@ -6,7 +6,7 @@ PVOID MemoryOperandHandlers[VM_OPHANDLER_COUNT * VM_IREG_COUNT * VM_OPSIZE_COUNT
 PVOID RegisterOperandHandlers[VM_OPHANDLER_COUNT * VM_IREG_COUNT * VM_OPSIZE_COUNT] = { NULL };
 PVOID ImmediateOperandHandlers[VM_IREG_COUNT * VM_OPSIZE_COUNT] = { NULL };
 
-PVOID* ViGetNativeHandler(UINT IClass, UINT OpSize1, UINT OpSize2)
+PVOID* ViGetNativeHandler(UINT32 IClass, UINT32 OpSize1, UINT32 OpSize2)
 {
 	return &NativeHandlers[
 		(IClass * VM_OPSIZE_COUNT * VM_OPSIZE_COUNT) + 
@@ -15,7 +15,7 @@ PVOID* ViGetNativeHandler(UINT IClass, UINT OpSize1, UINT OpSize2)
 	];
 }
 
-PVOID* ViGetMemoryOperandHandler(UINT LoadStore, UINT IReg, UINT OpSize, UINT MemOpType)
+PVOID* ViGetMemoryOperandHandler(UINT32 LoadStore, UINT32 IReg, UINT32 OpSize, UINT32 MemOpType)
 {
 	return &MemoryOperandHandlers[
 		(LoadStore * VM_IREG_COUNT * VM_OPSIZE_COUNT * VM_MEMOP_TYPE_COUNT) +
@@ -25,7 +25,7 @@ PVOID* ViGetMemoryOperandHandler(UINT LoadStore, UINT IReg, UINT OpSize, UINT Me
 	];
 }
 
-PVOID* ViGetRegisterOperandHandler(UINT LoadStore, UINT IReg, UINT OpSize)
+PVOID* ViGetRegisterOperandHandler(UINT32 LoadStore, UINT32 IReg, UINT32 OpSize)
 {
 	return &RegisterOperandHandlers[
 		(LoadStore * VM_IREG_COUNT * VM_OPSIZE_COUNT) +
@@ -34,7 +34,7 @@ PVOID* ViGetRegisterOperandHandler(UINT LoadStore, UINT IReg, UINT OpSize)
 	];
 }
 
-PVOID* ViGetImmediateOperandHandler(UINT IReg, UINT OpSize)
+PVOID* ViGetImmediateOperandHandler(UINT32 IReg, UINT32 OpSize)
 {
 	return &ImmediateOperandHandlers[
 		(IReg * VM_OPSIZE_COUNT) +

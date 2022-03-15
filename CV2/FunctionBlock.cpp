@@ -59,7 +59,7 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 		return CurrentBlock;
 
 	//Otherwise, fix up conditional jumps by searching for where they jump to!
-	for (UINT i = 0; i < FunctionBlocks.size(); i++)
+	for (UINT32 i = 0; i < FunctionBlocks.size(); i++)
 	{
 		if (FunctionBlocks[i]->Conditional)
 		{
@@ -93,7 +93,7 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 		continue;
 	}
 
-	/*for (UINT i = 0; i < FunctionBlocks.size(); i++)
+	/*for (UINT32 i = 0; i < FunctionBlocks.size(); i++)
 	{
 		printf("Block: %d\n", i);
 		NrDebugPrintIClass(&FunctionBlocks[i]->Block);

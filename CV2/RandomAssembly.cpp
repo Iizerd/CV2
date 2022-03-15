@@ -1,9 +1,9 @@
 #include "RandomAssembly.h"
 
 
-XED_REG_ENUM RaGetRandomRegister(UINT WidthInBytes)
+XED_REG_ENUM RaGetRandomRegister(UINT32 WidthInBytes)
 {
-	UINT Offset = (RndGetRandomNum<UINT>(0, 15));
+	UINT32 Offset = (RndGetRandomNum<UINT>(0, 15));
 	switch (WidthInBytes)
 	{
 	case 1:
@@ -51,7 +51,7 @@ XED_ICLASS_ENUM RaGetRandomBranchIClass()
 
 POSTOP_STATUS RaRandomizeInstAfterAssembly(PNATIVE_LINK Link, PUCHAR RawData, PVOID Context)
 {
-	for (UINT i = 0; i < Link->RawDataSize; i++)
+	for (UINT32 i = 0; i < Link->RawDataSize; i++)
 	{
 		RawData[i] = (UCHAR)RndGetRandomNum<UINT>(0, 255);
 	}

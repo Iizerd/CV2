@@ -9,11 +9,11 @@ VOID XedGlobalInit()
 	XedGlobalMachineState.stack_addr_width = XED_ADDRESS_WIDTH_64b;
 }
 
-PUCHAR XedEncodeInstructions(XED_ENCODER_INSTRUCTION* InstList, UINT InstCount, PUINT OutSize)
+PUCHAR XedEncodeInstructions(XED_ENCODER_INSTRUCTION* InstList, UINT32 InstCount, PUINT32 OutSize)
 {
 	XED_ENCODER_REQUEST EncoderRequest;
-	UINT ReturnedSize = 0;
-	UINT TotalSize = 0;
+	UINT32 ReturnedSize = 0;
+	UINT32 TotalSize = 0;
 	XED_ERROR_ENUM XedError = XED_ERROR_GENERAL_ERROR;
 
 	*OutSize = 0;
@@ -24,7 +24,7 @@ PUCHAR XedEncodeInstructions(XED_ENCODER_INSTRUCTION* InstList, UINT InstCount, 
 		return NULL;
 	}
 
-	for (UINT i = 0; i < InstCount; i++)
+	for (UINT32 i = 0; i < InstCount; i++)
 	{
 		XedEncoderRequestZeroSetMode(&EncoderRequest, &XedGlobalMachineState);
 		if (!XedConvertToEncoderRequest(&EncoderRequest, &InstList[i]) || XED_ERROR_NONE != (XedError = XedEncode(&EncoderRequest, &EncodeBuffer[TotalSize], 15, &ReturnedSize)))

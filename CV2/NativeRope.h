@@ -58,6 +58,26 @@ typedef struct _NATIVE_BLOCK
 	PNATIVE_LINK Back;
 }NATIVE_BLOCK, *PNATIVE_BLOCK;
 
+typedef struct _FUNCTION_BLOCK
+{
+	NATIVE_BLOCK Block;
+	union
+	{
+		ULONG64 IsConditional;
+		struct
+		{
+			_FUNCTION_BLOCK* Taken;
+			_FUNCTION_BLOCK* NotTaken;
+		}Conditional;
+		struct
+		{
+			ULONG64 Dummy;
+			_FUNCTION_BLOCK* NextBlock;
+		}Absolute;
+	};
+}FUNCTION_BLOCK, * PFUNCTION_BLOCK;
+
+
 #define NrAllocateLink() AllocateS(NATIVE_LINK)
 
 VOID NrFreeLink(PNATIVE_LINK Link);
@@ -84,13 +104,14 @@ BOOLEAN NrDeepCopyBlock(PNATIVE_BLOCK Dest, PNATIVE_LINK Start, PNATIVE_LINK End
 
 BOOLEAN NrDeepCopyBlock2(PNATIVE_BLOCK Dest, PNATIVE_BLOCK Source);
 
-UINT NrCalcBlockSize(PNATIVE_BLOCK Block);
+UINT32 NrCalcBlockSize(PNATIVE_BLOCK Block);
 
 PNATIVE_LINK NrValidateDelta(PNATIVE_LINK Start, INT32 Delta, PINT32 LeftOver);
 
 BOOLEAN NrCalcRipDelta(PNATIVE_LINK Link, PINT32 DeltaOut);
 
-//It is very slow to promote all jumps one by one as NrEncode will do if nessicary. Promoting them all now is very fast. This is because you have to iterate through all previous jumps after u change one of them.
+//It is very slow to promote all jumps one by one as NrEncode will do if nessicary. 
+//Promoting them all now is very fast. This is because you have to iterate through all previous jumps after u change one of them.
 BOOLEAN NrPromoteAllRelativeJumpsTo32BitDisplacement(PNATIVE_BLOCK Block);
 
 PREOP_STATUS NrRelativeJumpPreOp(PNATIVE_LINK Link, PVOID Context);
@@ -103,15 +124,34 @@ BOOLEAN NrIsRipRelativeInstruction(PNATIVE_LINK Link, PINT32 Delta);
 
 BOOLEAN NrHandleDisplacementInstructions(PNATIVE_BLOCK Block);
 
-//TODO: rework so that we can handle potential padding in the middle of functions.
-//This means following jumps and what not
-BOOLEAN NrDecode(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength);
+//Create a tree that represents the flow of a NATIVE_BLOCK
+PFUNCTION_BLOCK NrCreateFunctionBlockTree(PNATIVE_BLOCK Block);
 
-BOOLEAN NrDecodeEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength, UINT32 Flags);
+//Frees the tree by iterating the NotTaken path, which goes straight through the code. Even after obfuscation(MAKE SURE THIS STILL WORKS AFTER MOVING THINGS AROUND)
+VOID NrFreeFunctionBlockTree(PFUNCTION_BLOCK TreeHead);
 
-PVOID NrEncode(PNATIVE_BLOCK Block, PUINT AssembledSize);
+//Decodes until it descovers a jump, at which point it recursively calls itself to generate the next block, at the delta by the jump.
+PFUNCTION_BLOCK NrDecodeToEndOfFunctionBlock(PVOID CodeStart);
+
+//The imperfect decoder is for when you cant confirm that the instructions all come one after another. If there might be padding somewhere, use this.
+//This will not decode multiple functions because the second function wont be referenced by a relative jump in the first one.
+//These functions do not generate actual "function blocks" because labels are not accounted for, and are only created after the fact unless the flag DECODER_FLAG_DONT_GENERATE_OPERATIONS is specified.
+BOOLEAN NrDecodeImperfect(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength);
+
+BOOLEAN NrDecodeImperfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength, UINT32 Flags);
+
+//The perfect decoder is for decoding blocks of instructions we know contain no padding after any absolute jumps. 
+BOOLEAN NrDecodePerfect(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength);
+
+BOOLEAN NrDecodePerfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength, UINT32 Flags);
+
+PVOID NrEncode(PNATIVE_BLOCK Block, PUINT32 AssembledSize);
 
 VOID NrDebugPrintIClass(PNATIVE_BLOCK Block);
+
+VOID NrPrintTakenPath(PFUNCTION_BLOCK TreeHead);
+
+VOID NrPrintNotTakenPath(PFUNCTION_BLOCK TreeHead);
 
 BOOLEAN NrAreFlagsClobbered(PNATIVE_LINK Start, PNATIVE_LINK End);
 

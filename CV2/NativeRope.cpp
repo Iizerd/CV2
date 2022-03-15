@@ -1,6 +1,7 @@
 #include "NativeRope.h"
 #include "Logging.h"
 
+
 VOID NrFreeLink(PNATIVE_LINK Link)
 {
 	if (Link->RawData)
@@ -196,9 +197,9 @@ BOOLEAN NrDeepCopyBlock2(PNATIVE_BLOCK Dest, PNATIVE_BLOCK Source)
 	return NrDeepCopyBlock(Dest, Source->Front, Source->Back);
 }
 
-UINT NrCalcBlockSize(PNATIVE_BLOCK Block)
+UINT32 NrCalcBlockSize(PNATIVE_BLOCK Block)
 {
-	UINT Total = 0;
+	UINT32 Total = 0;
 	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
 		if (T->LinkData.Flags & CODE_FLAG_OCCUPIES_SPACE)
@@ -288,7 +289,7 @@ BOOLEAN NrPromoteAllRelativeJumpsTo32BitDisplacement(PNATIVE_BLOCK Block)
 	{
 		if (T->LinkData.Flags & CODE_FLAG_IS_REL_JUMP)
 		{
-			UINT BranchInstSize = 0;
+			UINT32 BranchInstSize = 0;
 			XED_ICLASS_ENUM IClass = XedDecodedInstGetIClass(&T->DecodedInst);
 			XED_ENCODER_INSTRUCTION RawBranchInst;
 			XedInst1(&RawBranchInst, XedGlobalMachineState, IClass, 32, XedRelBr(0, 32));
@@ -334,7 +335,7 @@ PREOP_STATUS NrRelativeJumpPreOp(PNATIVE_LINK Link, PVOID Context)
 	//If it takes more bits than available to represent current displacement
 	if (XedSignedDispNeededWidth(BranchDisp) > XedDecodedInstGetBranchDisplacementWidthBits(&Link->DecodedInst))
 	{
-		UINT BranchInstSize = 0;
+		UINT32 BranchInstSize = 0;
 		XED_ICLASS_ENUM IClass = XedDecodedInstGetIClass(&Link->DecodedInst);
 		XED_ENCODER_INSTRUCTION RawBranchInst;
 		XedInst1(&RawBranchInst, XedGlobalMachineState, IClass, 32, XedRelBr(BranchDisp, 32));
@@ -363,7 +364,7 @@ PREOP_STATUS NrRelativeJumpPreOp(PNATIVE_LINK Link, PVOID Context)
 	}
 
 	////A bit hacky ya? Displacement is always going to be the last bits of the jump.
-	//UINT BranchDispWidth = XedDecodedInstGetBranchDisplacementWidth(&Link->DecodedInst);
+	//UINT32 BranchDispWidth = XedDecodedInstGetBranchDisplacementWidth(&Link->DecodedInst);
 	//switch (BranchDispWidth)
 	//{
 	//case 1: *(PINT8) & (((PUCHAR)Link->RawData)[Link->RawDataSize - BranchDispWidth]) = (INT8)BranchDisp; break;
@@ -382,7 +383,7 @@ PREOP_STATUS NrRipRelativePreOp(PNATIVE_LINK Link, PVOID Context)
 
 BOOLEAN NrIsRelativeJump(PNATIVE_LINK Link)
 {
-	UINT OperandCount = XedDecodedInstNumOperands(&Link->DecodedInst);
+	UINT32 OperandCount = XedDecodedInstNumOperands(&Link->DecodedInst);
 	if (OperandCount < 1)
 		return FALSE;
 
@@ -404,12 +405,12 @@ BOOLEAN NrIsRelativeJump(PNATIVE_LINK Link)
 
 BOOLEAN NrIsRipRelativeInstruction(PNATIVE_LINK Link, PINT32 Delta)
 {
-	UINT OperandCount = XedDecodedInstNumOperands(&Link->DecodedInst);
+	UINT32 OperandCount = XedDecodedInstNumOperands(&Link->DecodedInst);
 	if (OperandCount == 0)
 		return FALSE;
 
 	CONST XED_INST* Inst = XedDecodedInstInst(&Link->DecodedInst);
-	for (UINT i = 0; i < OperandCount; i++)
+	for (UINT32 i = 0; i < OperandCount; i++)
 	{
 		XED_OPERAND_ENUM OperandName = XedOperandName(XedInstOperand(Inst, i));
 		if (OperandName != XED_OPERAND_MEM0 && OperandName != XED_OPERAND_AGEN)
@@ -496,14 +497,155 @@ BOOLEAN NrHandleDisplacementInstructions(PNATIVE_BLOCK Block)
 	}
 }
 
-BOOLEAN NrDecode(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength)
+PFUNCTION_BLOCK NrCreateFunctionBlockTree(PNATIVE_BLOCK CodeBlock)
 {
-	return NrDecodeEx(Block, RawCode, CodeLength, 0UL);
+	STDVECTOR<PFUNCTION_BLOCK> FunctionBlocks = { };
+
+	if (!CodeBlock->Front || !CodeBlock->Back)
+		return NULL;
+
+	PFUNCTION_BLOCK CurrentBlock = AllocateS(FUNCTION_BLOCK);
+	if (!CurrentBlock)
+	{
+		MLog("Could not allocate memory for first function block.\n");
+		return NULL;
+	}
+	CurrentBlock->Block.Front = CodeBlock->Front;
+
+	for (PNATIVE_LINK T = CodeBlock->Front; T && T != CodeBlock->Back->Next; T = T->Next)
+	{
+		if ((T->LinkData.Flags & CODE_FLAG_IS_REL_JUMP) ||
+			((T->LinkData.Flags & CODE_FLAG_IS_LABEL) && (T->LinkData.Flags & CODE_FLAG_IS_JUMP_TARGET)))
+		{
+			PFUNCTION_BLOCK NextBlock = AllocateS(FUNCTION_BLOCK);
+			if (!NextBlock)
+			{
+				MLog("Could not allocate memory for next function block.\n");
+				for (PFUNCTION_BLOCK Block : FunctionBlocks)
+					Free(Block);
+				Free(CurrentBlock);
+				return NULL;
+			}
+
+			if (T->LinkData.Flags & CODE_FLAG_IS_REL_JUMP)
+			{
+				NextBlock->Block.Front = T->Next;
+				CurrentBlock->Block.Back = T;
+				CurrentBlock->IsConditional = (ULONG64)(!(XED_ICLASS_JMP == XedDecodedInstGetIClass(&T->DecodedInst)));
+			}
+			else
+			{
+				NextBlock->Block.Front = T;
+				CurrentBlock->Block.Back = T->Prev;
+				CurrentBlock->IsConditional = FALSE;
+			}
+
+			CurrentBlock->Absolute.NextBlock = NextBlock;
+			FunctionBlocks.push_back(CurrentBlock);
+			CurrentBlock = NextBlock;
+		}
+	}
+
+	CurrentBlock->Block.Back = CodeBlock->Back;
+	CurrentBlock->IsConditional = FALSE;
+	FunctionBlocks.push_back(CurrentBlock);
+
+	//Only one block so we just return it.
+	if (FunctionBlocks.size() == 0)
+		return CurrentBlock;
+
+	//Otherwise, fix up conditional jumps by searching for where they jump to!
+	for (UINT32 i = 0; i < FunctionBlocks.size(); i++)
+	{
+		if (FunctionBlocks[i]->IsConditional)
+		{
+			INT32 TargetLabel = FunctionBlocks[i]->Block.Back->LinkData.Id;
+			for (INT j = i + 1; j < FunctionBlocks.size(); j++)
+			{
+				if ((FunctionBlocks[j]->Block.Front->LinkData.Flags & CODE_FLAG_IS_LABEL) &&
+					TargetLabel == FunctionBlocks[j]->Block.Front->LinkData.Id)
+				{
+					FunctionBlocks[i]->Conditional.Taken = FunctionBlocks[j];
+					goto ContinueToNextBlock;
+				}
+
+			}
+			for (INT j = i - 1; j >= 0; j--)
+			{
+				if ((FunctionBlocks[j]->Block.Front->LinkData.Flags & CODE_FLAG_IS_LABEL) &&
+					TargetLabel == FunctionBlocks[j]->Block.Front->LinkData.Id)
+				{
+					FunctionBlocks[i]->Conditional.Taken = FunctionBlocks[j];
+					goto ContinueToNextBlock;
+				}
+			}
+
+			for (PFUNCTION_BLOCK Block : FunctionBlocks)
+				Free(Block);
+			MLog("Failed to find Taken branch of relative jump.\n");
+			return NULL;
+		}
+	ContinueToNextBlock:
+		continue;
+	}
+
+	return FunctionBlocks[0];
 }
 
-BOOLEAN NrDecodeEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength, UINT32 Flags)
+VOID NrFreeFunctionBlockTree(PFUNCTION_BLOCK TreeHead)
 {
-	if (!CodeLength)
+	if (TreeHead)
+	{
+		NrFreeTree(TreeHead->Absolute.NextBlock);
+		Free(TreeHead);
+	}
+}
+
+PFUNCTION_BLOCK NrDecodeToEndOfFunctionBlock(PVOID CodeStart)
+{
+	//Decode until we reach a relative jump. then create a block, and decode to that!
+	PFUNCTION_BLOCK Block = AllocateS(FUNCTION_BLOCK);
+	if (!Block)
+	{
+		MLog("Could not allocate function block to decode to.\n");
+		return NULL;
+	}
+
+	//Do the decoding
+
+
+	/*
+	* if jump is conditional
+	*	Block->Conditional.Taken = NrDecodeToEndOfFunctionBlock(CalcTakenDelta)
+	*	Block->Conditional.NotTaken = NrDecodeToEndOfFunctionBlock(NextInstruction)
+	* else
+	*   Block->Absolute.NextBlock = NrDecodeToEndOfFunctionBlock(NextInstruction);
+	*/
+
+	return Block;
+}
+
+BOOLEAN NrDecodeImperfect(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength)
+{
+	return NrDecodeImperfectEx(Block, RawCode, CodeLength, 0UL);
+}
+
+BOOLEAN NrDecodeImperfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength, UINT32 Flags)
+{
+	if (!RawCode || !CodeLength)
+		return FALSE;
+
+	
+}
+
+BOOLEAN NrDecodePerfect(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength)
+{
+	return NrDecodePerfectEx(Block, RawCode, CodeLength, 0UL);
+}
+
+BOOLEAN NrDecodePerfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength, UINT32 Flags)
+{
+	if (!RawCode || !CodeLength)
 		return FALSE;
 
 	PUCHAR CodePointer = (PUCHAR)RawCode;
@@ -514,23 +656,23 @@ BOOLEAN NrDecodeEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength, UINT32 F
 		if (!Link)
 		{
 			NrFreeBlock(Block);
-			MLog("Could not allocate new link in NrDecode\n");
+			MLog("Could not allocate new link in NrDecodePerfect\n");
 			return FALSE;
 		}
 		NrInitForInst(Link);
-		UINT PossibleSize = MinVal(15, CodeEnd - CodePointer);
+		UINT32 PossibleSize = MinVal(15, CodeEnd - CodePointer);
 
 		XedDecodedInstZeroSetMode(&Link->DecodedInst, &XedGlobalMachineState);
 		XED_ERROR_ENUM XedError = XedDecode(&Link->DecodedInst, CodePointer, PossibleSize);
 		if (XedError != XED_ERROR_NONE)
 		{
-			MLog("XedDecode failed in NrDecode. Error: %s\n", XedErrorEnumToString(XedError));
+			MLog("XedDecode failed in NrDecodePerfect. Error: %s\n", XedErrorEnumToString(XedError));
 			NrFreeLink(Link);
 			NrFreeBlock(Block);
 			return FALSE;
 		}
 
-		UINT RawDataSize = XedDecodedInstGetLength(&Link->DecodedInst);
+		UINT32 RawDataSize = XedDecodedInstGetLength(&Link->DecodedInst);
 		PVOID RawData = Allocate(RawDataSize);
 		if (!RawData)
 		{
@@ -556,7 +698,7 @@ BOOLEAN NrDecodeEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT CodeLength, UINT32 F
 	return IrCountLinks(Block);
 }
 
-PVOID NrEncode(PNATIVE_BLOCK Block, PUINT AssembledSize)
+PVOID NrEncode(PNATIVE_BLOCK Block, PUINT32 AssembledSize)
 {
 	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next;)
 	{
@@ -582,7 +724,7 @@ PVOID NrEncode(PNATIVE_BLOCK Block, PUINT AssembledSize)
 		continue;
 	}
 
-	UINT TotalSize = NrCalcBlockSize(Block);
+	UINT32 TotalSize = NrCalcBlockSize(Block);
 	if (!Block->Front || !Block->Back || !AssembledSize || !TotalSize)
 	{
 		MLog("Invalid block to assemble.\n");
@@ -649,6 +791,29 @@ VOID NrDebugPrintIClass(PNATIVE_BLOCK Block)
 	}
 }
 
+VOID NrPrintTakenPath(PFUNCTION_BLOCK TreeHead)
+{
+	while (TreeHead)
+	{
+		NrDebugPrintIClass(&TreeHead->Block);
+		if (TreeHead->IsConditional)
+			TreeHead = TreeHead->Conditional.Taken;
+		else
+			TreeHead = TreeHead->Absolute.NextBlock;
+		printf("\n");
+	}
+}
+
+VOID NrPrintNotTakenPath(PFUNCTION_BLOCK TreeHead)
+{
+	while (TreeHead)
+	{
+		NrDebugPrintIClass(&TreeHead->Block);
+		TreeHead = TreeHead->Absolute.NextBlock;
+		printf("\n");
+	}
+}
+
 BOOLEAN NrAreFlagsClobbered(PNATIVE_LINK Start, PNATIVE_LINK End)
 {
 	if (Start == End)
@@ -697,7 +862,7 @@ BOOLEAN NrAreFlagsClobbered(PNATIVE_LINK Start, PNATIVE_LINK End)
 //			{
 //				MLog("Cannot currently handle needing to resize relative jump displacement widths.\n");
 //				return FALSE;
-//				//UINT BranchInstSize = 0;
+//				//UINT32 BranchInstSize = 0;
 //				//XED_ICLASS_ENUM IClass = XedDecodedInstGetIClass(&T->DecodedInst);
 //				//XED_ENCODER_INSTRUCTION RawBranchInst;
 //				//XedInst1(&RawBranchInst, XedGlobalMachineState, IClass, 32, XedRelBr(BranchDisp, 32));
@@ -723,7 +888,7 @@ BOOLEAN NrAreFlagsClobbered(PNATIVE_LINK Start, PNATIVE_LINK End)
 //			else
 //			{
 //				//A bit hacky ya? Displacement is always going to be the last bits of the jump.
-//				UINT BranchDispWidth = XedDecodedInstGetBranchDisplacementWidth(&T->DecodedInst);
+//				UINT32 BranchDispWidth = XedDecodedInstGetBranchDisplacementWidth(&T->DecodedInst);
 //				switch (BranchDispWidth)
 //				{
 //				case 1: *(PINT8)&(((PUCHAR)T->RawData)[T->RawDataSize - BranchDispWidth]) = (INT8)BranchDisp; break;

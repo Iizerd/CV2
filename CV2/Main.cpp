@@ -30,7 +30,7 @@ int main()
 		NATIVE_BLOCK Block;
 		Block.Front = Block.Back = NULL;
 		JnkGenerateFunctionPrologue(&Block, i, 128, FALSE);
-		UINT AsmSize = 0;
+		UINT32 AsmSize = 0;
 		PVOID Asm = NrEncode(&Block, &AsmSize);
 
 		for (ULONG i = 0; i < AsmSize; i++)
@@ -41,7 +41,7 @@ int main()
 
 	//NATIVE_BLOCK Block;
 	//Block.Back = Block.Front = NULL;
-	//NrDecode(&Block, TestArray, sizeof(TestArray));
+	//NrDecodePerfect(&Block, TestArray, sizeof(TestArray));
 	//NrPromoteAllRelativeJumpsTo32BitDisplacement(&Block);
 	//
 	//PNATIVE_LINK* EnumArray = (PNATIVE_LINK*)IrEnumerateBlock(&Block, IrCountLinks(&Block));
@@ -59,7 +59,7 @@ int main()
 
 	//NrFreeLink(JmpLink);
 
-	//UINT AsmSize = 0;
+	//UINT32 AsmSize = 0;
 	//PVOID Asm = NrEncode(&Block, &AsmSize);
 
 	//for (ULONG i = 0; i < AsmSize; i++)

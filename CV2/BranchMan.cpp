@@ -2,7 +2,7 @@
 #include "Logging.h"
 #include "RandomAssembly.h"
 
-BOOLEAN BmGenerateEmulateRet1(PNATIVE_BLOCK Block, UINT JunkSize)
+BOOLEAN BmGenerateEmulateRet1(PNATIVE_BLOCK Block, UINT32 JunkSize)
 {
 	//-	POP [RIP + 6 + Delta]		[GROUP_START]
 	//-	JMP [RIP + Delta]
@@ -13,13 +13,13 @@ BOOLEAN BmGenerateEmulateRet1(PNATIVE_BLOCK Block, UINT JunkSize)
 	XedInst1(&InstList[0], XedGlobalMachineState, XED_ICLASS_POP, 64, XedMemBD(XED_REG_RIP, XedDisp(6 + JunkSize, 32), 64));
 	XedInst1(&InstList[1], XedGlobalMachineState, XED_ICLASS_JMP, 64, XedMemBD(XED_REG_RIP, XedDisp(JunkSize, 32), 64));
 
-	UINT OutSize = 0;
+	UINT32 OutSize = 0;
 	PUCHAR EncodedInst = XedEncodeInstructions(InstList, 2, &OutSize);
 	if (!EncodedInst || !OutSize)
 		return FALSE;
 
 	Block->Front = Block->Back = NULL;
-	if (!NrDecodeEx(Block, EncodedInst, OutSize, DECODER_FLAG_DONT_GENERATE_OPERATIONS))
+	if (!NrDecodePerfectEx(Block, EncodedInst, OutSize, DECODER_FLAG_DONT_GENERATE_OPERATIONS))
 		return FALSE;
 
 	Free(EncodedInst);
@@ -48,7 +48,7 @@ BOOLEAN BmGenerateEmulateRet1(PNATIVE_BLOCK Block, UINT JunkSize)
 	return TRUE;
 }
 
-BOOLEAN BmGenerateEmulateRet2(PNATIVE_BLOCK Block, UINT JunkSize, UINT DeadstoreMethod)
+BOOLEAN BmGenerateEmulateRet2(PNATIVE_BLOCK Block, UINT32 JunkSize, UINT32 DeadstoreMethod)
 {
 	/*
 	*  - JMP Delta			[GROUP_START]
@@ -60,11 +60,11 @@ BOOLEAN BmGenerateEmulateRet2(PNATIVE_BLOCK Block, UINT JunkSize, UINT Deadstore
 	INT32 JmpDisp = 0;
 	{
 		UINT32 ImmValue = 0;
-		UINT ImmWidth = 3;
+		UINT32 ImmWidth = 3;
 		while (ImmWidth == 3)
 			ImmWidth = RndGetRandomNum<INT32>(1, 4);	//1, 2, 4
 
-		UINT ImmWidthBits = ImmWidth * 8;				//8, 16, 32
+		UINT32 ImmWidthBits = ImmWidth * 8;				//8, 16, 32
 		INT32 OffsetInsideImm = RndGetRandomNum<INT32>(0, ImmWidth - 1);
 		for (INT32 i = 0; i < ImmWidth; i++)
 		{
@@ -74,7 +74,7 @@ BOOLEAN BmGenerateEmulateRet2(PNATIVE_BLOCK Block, UINT JunkSize, UINT Deadstore
 				ImmValue |= ((UINT32)(RndGetRandomNum<INT32>(0, 255)) << (i * 8));
 		}
 
-		UINT OutSize = 0;
+		UINT32 OutSize = 0;
 		PUCHAR EncodedInst = NULL;
 		XED_ENCODER_INSTRUCTION DeadstoreInst;
 
@@ -144,7 +144,7 @@ BOOLEAN BmGenerateEmulateRet2(PNATIVE_BLOCK Block, UINT JunkSize, UINT Deadstore
 	//We do not need to add a preop to recalculate this delta because this group will NOT be edited.
 	{
 		XED_ENCODER_INSTRUCTION JmpInst;
-		UINT OutSize = 0;
+		UINT32 OutSize = 0;
 		XedInst1(&JmpInst, XedGlobalMachineState, XED_ICLASS_JMP, 64, XedMemBD(XED_REG_RIP, XedDisp(JmpDisp, 32), 64));
 		PUCHAR EncodedInst = XedEncodeInstructions(&JmpInst, 1, &OutSize);
 		if (!EncodedInst || !OutSize)
@@ -193,7 +193,7 @@ PREOP_STATUS BmInternalRipDeltaFinder(PNATIVE_LINK Link, PVOID Context)
 
 	XED_ENCODER_INSTRUCTION InstList;
 	XedInst2(&InstList, XedGlobalMachineState, XED_ICLASS_LEA, 64, XedReg(Reg), XedMemBD(XED_REG_RIP, XedDisp(BranchDisp, 32), 64));
-	UINT OutSize = 0;
+	UINT32 OutSize = 0;
 	PUCHAR AssembledCode = XedEncodeInstructions(&InstList, 1, &OutSize);
 	if (!AssembledCode || !OutSize)
 	{
@@ -228,7 +228,7 @@ BOOLEAN BmConvertRelativeNonConditionalJumpToAbsolute(PNATIVE_BLOCK Block, INT32
 	XedInst2(&InstList[2], XedGlobalMachineState, XED_ICLASS_XCHG, 64, XedMemB(XED_REG_RSP, 64), XedReg(XED_REG_RAX));
 	XedInst0(&InstList[3], XedGlobalMachineState, XED_ICLASS_RET_NEAR, 64);
 
-	UINT OutSize = 0;
+	UINT32 OutSize = 0;
 	PUCHAR AssembledCode = XedEncodeInstructions(InstList, 4, &OutSize);
 	if (!AssembledCode || !OutSize)
 	{
@@ -236,7 +236,7 @@ BOOLEAN BmConvertRelativeNonConditionalJumpToAbsolute(PNATIVE_BLOCK Block, INT32
 		return FALSE;
 	}
 
-	if (!NrDecodeEx(Block, AssembledCode, OutSize, DECODER_FLAG_DONT_GENERATE_OPERATIONS))
+	if (!NrDecodePerfectEx(Block, AssembledCode, OutSize, DECODER_FLAG_DONT_GENERATE_OPERATIONS))
 	{
 		MLog("Could not decode relative jump replacement.\n");
 		Free(AssembledCode);
@@ -319,7 +319,7 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute(PNATIVE_BLOCK Block, PNATIVE_
 	NrInitForInst(BranchLink);
 	{
 		XED_ENCODER_INSTRUCTION BranchInst;
-		UINT OutSize = 0;
+		UINT32 OutSize = 0;
 		//This SHOULD be a relatively smal jump, and will remain as such since it is inside of a group. So its encoded as 8 bit displacement.
 		//If I ever verify that this all works if split up, this might want to be encoded as 32 bits proactively.
 		XedInst1(&BranchInst, XedGlobalMachineState, InvertedJccIClass, 8, XedRelBr(0, 8));
@@ -397,7 +397,7 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE
 	XedInst2(&InstList[6], XedGlobalMachineState, XED_ICLASS_XCHG, 64, XedMemB(XED_REG_RSP, 64), XedReg(XED_REG_RAX));
 	XedInst0(&InstList[7], XedGlobalMachineState, XED_ICLASS_RET_NEAR, 64);
 
-	UINT OutSize = 0;
+	UINT32 OutSize = 0;
 	PUCHAR AssembledCode = XedEncodeInstructions(InstList, 8, &OutSize);
 	if (!AssembledCode || !OutSize)
 	{
@@ -405,7 +405,7 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE
 		return FALSE;
 	}
 
-	if (!NrDecodeEx(Block, AssembledCode, OutSize, DECODER_FLAG_DONT_GENERATE_OPERATIONS))
+	if (!NrDecodePerfectEx(Block, AssembledCode, OutSize, DECODER_FLAG_DONT_GENERATE_OPERATIONS))
 	{
 		MLog("Could not decode relative conditional jump replacement.\n");
 		Free(AssembledCode);
@@ -502,7 +502,7 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block
 	XedInst2(&InstList[6], XedGlobalMachineState, XED_ICLASS_XCHG, 64, XedMemB(XED_REG_RSP, 64), XedReg(Reg1));
 	XedInst0(&InstList[7], XedGlobalMachineState, XED_ICLASS_RET_NEAR, 64);
 
-	UINT OutSize = 0;
+	UINT32 OutSize = 0;
 	PUCHAR AssembledCode = XedEncodeInstructions(InstList, 8, &OutSize);
 	if (!AssembledCode || !OutSize)
 	{
@@ -510,7 +510,7 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block
 		return FALSE;
 	}
 
-	if (!NrDecodeEx(Block, AssembledCode, OutSize, DECODER_FLAG_DONT_GENERATE_OPERATIONS))
+	if (!NrDecodePerfectEx(Block, AssembledCode, OutSize, DECODER_FLAG_DONT_GENERATE_OPERATIONS))
 	{
 		MLog("Could not decode relative conditional jump replacement.\n");
 		Free(AssembledCode);

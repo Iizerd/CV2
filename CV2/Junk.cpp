@@ -54,7 +54,7 @@ PNATIVE_BLOCK JnkGenerateFunctionPrologue(PNATIVE_BLOCK Block, UINT32 ArgumentCo
 	}
 	XedInst2(&InstList[RegHomeStoreCount++], XedGlobalMachineState, XED_ICLASS_SUB, 64, XedReg(XED_REG_RSP), XedImm0(StackAdjustment, XedSignedDispNeededWidth(StackAdjustment)));
 
-	UINT OutSize = 0;
+	UINT32 OutSize = 0;
 	PUCHAR EncodedData = XedEncodeInstructions(InstList, RegHomeStoreCount, &OutSize);
 	if (!EncodedData || !OutSize)
 	{
@@ -62,7 +62,7 @@ PNATIVE_BLOCK JnkGenerateFunctionPrologue(PNATIVE_BLOCK Block, UINT32 ArgumentCo
 		return NULL;
 	}
 
-	if (!NrDecodeEx(Block, EncodedData, OutSize, DECODER_FLAG_DONT_GENERATE_OPERATIONS))
+	if (!NrDecodePerfectEx(Block, EncodedData, OutSize, DECODER_FLAG_DONT_GENERATE_OPERATIONS))
 	{
 		MLog("Failed to decoded encoded prologue.\n");
 		Free(EncodedData);

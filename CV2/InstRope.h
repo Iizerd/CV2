@@ -61,7 +61,7 @@ typedef VOID(*FnForEachCallbackEx)(PINST_BLOCK, PINST_LINK, PVOID);
 VOID _IrForEachLinkEx(PINST_BLOCK Block, FnForEachCallbackEx Callback, PVOID Context);
 #define IrForEachLinkEx(Block, Callback, Context) _IrForEachLinkEx((PINST_BLOCK)Block, (FnForEachCallbackEx)Callback, (PVOID)Context)
 
-UINT _IrCountLinks(PINST_BLOCK Block);
+UINT32 _IrCountLinks(PINST_BLOCK Block);
 #define IrCountLinks(Block) _IrCountLinks((PINST_BLOCK)Block)
 
 PINST_LINK _IrTraceToGroupEnd(PINST_LINK GroupStart, PINST_LINK TraceStop);

@@ -109,7 +109,7 @@ inline XED_STATE XedGlobalMachineState;
 
 VOID XedGlobalInit();
 
-PUCHAR XedEncodeInstructions(XED_ENCODER_INSTRUCTION* InstList, UINT InstCount, PUINT OutSize);
+PUCHAR XedEncodeInstructions(XED_ENCODER_INSTRUCTION* InstList, UINT32 InstCount, PUINT32 OutSize);
 
 XED_ICLASS_ENUM XedJccToCMOVcc(XED_ICLASS_ENUM Jcc);
 

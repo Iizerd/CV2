@@ -21,11 +21,11 @@ VOID DisplayLog()
 {
 #if defined(THREAD_SAFE_LOG)
 	LogMutex.lock();
-	for (UINT i = 0; i < TheLog.size(); i++)
+	for (UINT32 i = 0; i < TheLog.size(); i++)
 		printf("%s", TheLog[i].data());
 	LogMutex.unlock();
 #else
-		for (UINT i = 0; i < TheLog.size(); i++)
+		for (UINT32 i = 0; i < TheLog.size(); i++)
 			printf("%s", TheLog[i].data());
 #endif
 }

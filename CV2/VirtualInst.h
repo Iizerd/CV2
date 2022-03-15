@@ -10,12 +10,12 @@ typedef struct _VIRTUAL_INSTRUCTION_REPRESENTATION
 
 }VIRT_INST_REP, *PVIRT_INST_REP;
 
-PVOID* ViGetNativeHandler(UINT IClass, UINT OpSize1 = 0, UINT OpSize2 = 0);
+PVOID* ViGetNativeHandler(UINT32 IClass, UINT32 OpSize1 = 0, UINT32 OpSize2 = 0);
 
-PVOID* ViGetMemoryOperandHandler(UINT LoadStore, UINT IReg, UINT OpSize, UINT MemOpType);
+PVOID* ViGetMemoryOperandHandler(UINT32 LoadStore, UINT32 IReg, UINT32 OpSize, UINT32 MemOpType);
 
-PVOID* ViGetRegisterOperandHandler(UINT LoadStore, UINT IReg, UINT OpSize);
+PVOID* ViGetRegisterOperandHandler(UINT32 LoadStore, UINT32 IReg, UINT32 OpSize);
 
-PVOID* ViGetImmediateOperandHandler(UINT IReg, UINT OpSize);
+PVOID* ViGetImmediateOperandHandler(UINT32 IReg, UINT32 OpSize);
 
 #endif

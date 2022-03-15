@@ -11,10 +11,10 @@
 //TODO: Add pre-assembly operations so that all of these no longer need group tags.
 
 //Pops the return address into a space allocated in the code, POP [RIP+??]
-BOOLEAN BmGenerateEmulateRet1(PNATIVE_BLOCK Block, UINT JunkSize);
+BOOLEAN BmGenerateEmulateRet1(PNATIVE_BLOCK Block, UINT32 JunkSize);
 
 //Deadstores 0xc3 somewhere ahead of a jump, make relative jump to it.
-BOOLEAN BmGenerateEmulateRet2(PNATIVE_BLOCK Block, UINT JunkSize, UINT DeadstoreMethod);
+BOOLEAN BmGenerateEmulateRet2(PNATIVE_BLOCK Block, UINT32 JunkSize, UINT32 DeadstoreMethod);
 
 PREOP_STATUS BmInternalRipDeltaFinder(PNATIVE_LINK Link, PVOID Context);
 

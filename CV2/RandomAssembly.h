@@ -5,7 +5,7 @@
 #include "XedWrap.h"
 #include "NativeRope.h"
 
-XED_REG_ENUM RaGetRandomRegister(UINT WidthInBytes);
+XED_REG_ENUM RaGetRandomRegister(UINT32 WidthInBytes);
 
 XED_ICLASS_ENUM RaGetRandomBitwiseIClass();
 

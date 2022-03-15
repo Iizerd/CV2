@@ -20,9 +20,9 @@ VOID _IrForEachLinkEx(PINST_BLOCK Block, FnForEachCallbackEx Callback, PVOID Con
 	}
 }
 
-UINT _IrCountLinks(PINST_BLOCK Block)
+UINT32 _IrCountLinks(PINST_BLOCK Block)
 {
-	UINT Count = 0;
+	UINT32 Count = 0;
 	for (PINST_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 		Count++;
 	return Count;
