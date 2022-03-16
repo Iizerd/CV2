@@ -391,15 +391,6 @@ BOOLEAN NrIsRelativeJump(PNATIVE_LINK Link)
 	if (Category != XED_CATEGORY_COND_BR && Category != XED_CATEGORY_UNCOND_BR)
 		return FALSE;
 
-	CONST XED_INST* Inst = XedDecodedInstInst(&Link->DecodedInst);
-	CONST XED_OPERAND* Operand = XedInstOperand(Inst, 0);
-	if (!Operand)
-		return FALSE;
-
-	XED_OPERAND_TYPE_ENUM OperandType = XedOperandType(Operand);
-	if (OperandType != XED_OPERAND_TYPE_IMM && OperandType != XED_OPERAND_TYPE_IMM_CONST)
-		return FALSE;
-
 	return TRUE;
 }
 
@@ -608,6 +599,8 @@ PDECODE_BLOCK NrDecodeToBlocks(PUCHAR CodeStart, INT32 StartAddress, PUCHAR Code
 			}
 			break;
 		}
+		else if (Category == XED_CATEGORY_RET)
+			break;
 
 	}
 	DecodeBlock->EndAddress = CurrentAddress;
