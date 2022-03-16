@@ -665,7 +665,7 @@ BOOLEAN NrDecodeImperfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLengt
 			return FALSE;
 		}
 
-		if (ClosestDelta != 0) //Handle or instructions that are never reached.
+		if (ClosestDelta != 0) //Handle padding or instructions that are never reached.
 		{
 			PNATIVE_LINK PadLink = NrAllocateLink();
 			if (!PadLink)
