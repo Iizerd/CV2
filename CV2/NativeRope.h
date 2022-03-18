@@ -48,7 +48,7 @@ typedef struct _NATIVE_LINK
 	PASSEMBLY_PREOP		PreAssemblyOperations;
 	PASSEMBLY_POSTOP	PostAssemblyOperations;
 	PVOID				RawData;
-	UINT				RawDataSize;
+	UINT32				RawDataSize;
 	XED_DECODED_INST	DecodedInst;
 }NATIVE_LINK, *PNATIVE_LINK;
 
@@ -61,7 +61,7 @@ typedef struct _NATIVE_BLOCK
 typedef struct _DECODE_BLOCK
 {
 	NATIVE_BLOCK Block;
-	INT32 StartAddress;		//These two are only used when decoding instructions
+	INT32 StartAddress;	
 	INT32 EndAddress;
 }DECODE_BLOCK, * PDECODE_BLOCK;
 #define NrAllocateLink() AllocateS(NATIVE_LINK)
@@ -112,10 +112,12 @@ BOOLEAN NrHandleDisplacementInstructions(PNATIVE_BLOCK Block);
 
 BOOLEAN NrIsAddressInDecodedBlockRange(INT32 Address, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks);
 
+INT32 NrCalculateMaxSizeOfCurrentBlock(INT32 StartAddress, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks);
+
 BOOLEAN NrGetNextDecodeBlock(INT32 Address, PINT32 OutDelta, PUINT32 OutIndex, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks);
 
 //Decodes until it descovers a jump, at which point it recursively calls itself to generate the next block, at the delta by the jump.
-PDECODE_BLOCK NrDecodeToBlocks(PUCHAR CodeStart, INT32 StartAddress, PUCHAR CodeEnd, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks);
+PDECODE_BLOCK NrDecodeToBlocks(PUCHAR CodeStart, INT32 StartAddress, INT32 MaxAddress, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks);
 
 //The imperfect decoder is for when you cant confirm that the instructions all come one after another. If there might be padding somewhere, use this.
 //This will not decode multiple functions because the second function wont be referenced by a relative jump in the first one.
