@@ -333,7 +333,7 @@ PREOP_STATUS NrRelativeJumpPreOp(PNATIVE_LINK Link, PVOID Context)
 	BranchDisp += (INT64)Context;
 
 	//If it takes more bits than available to represent current displacement
-	if (XedSignedDispNeededWidth(BranchDisp) > XedDecodedInstGetBranchDisplacementWidthBits(&Link->DecodedInst))
+	if (XedSignedDispWidth(BranchDisp) > XedDecodedInstGetBranchDisplacementWidthBits(&Link->DecodedInst))
 	{
 		UINT32 BranchInstSize = 0;
 		XED_ICLASS_ENUM IClass = XedDecodedInstGetIClass(&Link->DecodedInst);
@@ -488,7 +488,7 @@ BOOLEAN NrHandleDisplacementInstructions(PNATIVE_BLOCK Block)
 	}
 }
 
-BOOLEAN NrIsAddressInDecodedBlockRange(INT32 Address, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks)
+BOOLEAN NrIsAddressInDecodedBlockRange(PUCHAR Address, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks)
 {
 	for (PDECODE_BLOCK Block : (*DecodeBlocks))
 	{
@@ -498,16 +498,16 @@ BOOLEAN NrIsAddressInDecodedBlockRange(INT32 Address, STDVECTOR<PDECODE_BLOCK>* 
 	return FALSE;
 }
 
-INT32 NrCalculateMaxSizeOfCurrentBlock(INT32 StartAddress, INT32 MaxAddress, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks)
+PUCHAR NrCalculateMaxSizeOfCurrentBlock(PUCHAR StartAddress, PUCHAR MaxAddress, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks)
 {
 	if (!DecodeBlocks->size())
 		return MaxAddress;
 
 	BOOLEAN FoundFirstDelta = FALSE;
-	INT32 ClosestDelta;
+	LONGLONG ClosestDelta;
 	for (UINT32 i = 0; i < DecodeBlocks->size(); i++)
 	{
-		INT32 CheckDelta = DecodeBlocks->at(i)->StartAddress - StartAddress;
+		LONGLONG CheckDelta = DecodeBlocks->at(i)->StartAddress - StartAddress;
 		if (CheckDelta >= 0)
 		{
 			if (!FoundFirstDelta)
@@ -525,12 +525,12 @@ INT32 NrCalculateMaxSizeOfCurrentBlock(INT32 StartAddress, INT32 MaxAddress, STD
 		return MaxAddress;
 }
 
-BOOLEAN NrGetNextDecodeBlock(INT32 Address, PINT32 OutDelta, PUINT32 OutIndex, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks)
+BOOLEAN NrGetNextDecodeBlock(PUCHAR Address, PINT64 OutDelta, PUINT64 OutIndex, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks)
 {
 	BOOLEAN FoundFirstDelta = FALSE;
 	for (UINT32 i = 0; i < DecodeBlocks->size(); i++)
 	{
-		INT32 CheckDelta = DecodeBlocks->at(i)->StartAddress - Address;
+		INT64 CheckDelta = DecodeBlocks->at(i)->StartAddress - Address;
 		if (CheckDelta >= 0)
 		{
 			if (!FoundFirstDelta)
@@ -549,36 +549,34 @@ BOOLEAN NrGetNextDecodeBlock(INT32 Address, PINT32 OutDelta, PUINT32 OutIndex, S
 	return FoundFirstDelta;
 }
 
-PDECODE_BLOCK NrDecodeToBlocks(PUCHAR CodeStart, INT32 StartAddress, INT32 MaxAddress, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks)
+PDECODE_BLOCK NrDecodeToBlocks(PUCHAR StartAddress, PUCHAR MaxAddress, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks)
 {
 	//Decode until we reach a relative jump. then create a block(or two), and decode to that!
 	PDECODE_BLOCK DecodeBlock = AllocateS(DECODE_BLOCK);
 	if (!DecodeBlock)
 	{
 		MLog("Could not allocate function block to decode to.\n");
-		return FALSE;
+		return NULL;
 	}
-	INT32 CurrentAddress = DecodeBlock->StartAddress = StartAddress;
-	INT32 PotentialBlockEndAddress = NrCalculateMaxSizeOfCurrentBlock(CurrentAddress, MaxAddress, DecodeBlocks);
-	PUCHAR CodePointer = CodeStart;
-	printf("Block Addresses. %d %d\n", CurrentAddress, PotentialBlockEndAddress);
+	PUCHAR CurrentAddress = DecodeBlock->StartAddress = StartAddress;
+	PUCHAR PotentialBlockEndAddress = NrCalculateMaxSizeOfCurrentBlock(StartAddress, MaxAddress, DecodeBlocks);
 	while (CurrentAddress < PotentialBlockEndAddress)
 	{
 		PNATIVE_LINK Link = NrAllocateLink();
 		if (!Link)
 		{
 			NrFreeBlock(&DecodeBlock->Block);
-			MLog("Could not allocate new link in NrDecodeToEndOfDecodeBlock\n");
+			MLog("Could not allocate new link in NrDecodeToBlocks\n");
 			return NULL;
 		}
 		NrInitForInst(Link);
 		UINT32 PossibleSize = MinVal(15, PotentialBlockEndAddress - CurrentAddress);
 
 		XedDecodedInstZeroSetMode(&Link->DecodedInst, &XedGlobalMachineState);
-		XED_ERROR_ENUM XedError = XedDecode(&Link->DecodedInst, CodePointer, PossibleSize);
+		XED_ERROR_ENUM XedError = XedDecode(&Link->DecodedInst, CurrentAddress, PossibleSize);
 		if (XedError != XED_ERROR_NONE)
 		{
-			MLog("XedDecode failed in NrDecodeToEndOfDecodeBlock. Address: %d Error: %s\n", CurrentAddress, XedErrorEnumToString(XedError));
+			MLog("XedDecode failed in NrDecodeToEndOfDecodeBlock. Address: %p Error: %s\n", CurrentAddress, XedErrorEnumToString(XedError));
 			NrFreeLink(Link);
 			NrFreeBlock(&DecodeBlock->Block);
 			Free(DecodeBlock);
@@ -596,12 +594,11 @@ PDECODE_BLOCK NrDecodeToBlocks(PUCHAR CodeStart, INT32 StartAddress, INT32 MaxAd
 			return NULL;
 		}
 
-		RtlCopyMemory(RawData, CodePointer, RawDataSize);
+		RtlCopyMemory(RawData, CurrentAddress, RawDataSize);
 		Link->RawData = RawData;
 		Link->RawDataSize = RawDataSize;
 
 		IrPutLinkBack(&DecodeBlock->Block, Link);
-		CodePointer += RawDataSize;
 		CurrentAddress += RawDataSize;
 
 		//Check if its a jump and not its already decoded: recursion and break loop
@@ -610,28 +607,29 @@ PDECODE_BLOCK NrDecodeToBlocks(PUCHAR CodeStart, INT32 StartAddress, INT32 MaxAd
 		{
 			MLog("Found branch: %s.\n", XedIClassEnumToString(XedDecodedInstGetIClass(&Link->DecodedInst)));
 			INT32 Displacement = XedDecodedInstGetBranchDisplacement(&Link->DecodedInst);
-			INT32 DisplacementAddress = CurrentAddress + Displacement;
+			PUCHAR DisplacementAddress = CurrentAddress + Displacement;
 			if (!NrIsAddressInDecodedBlockRange(DisplacementAddress, DecodeBlocks) &&
 				(DisplacementAddress >= CurrentAddress || DisplacementAddress < StartAddress)) //Check if its in the current block, which isnt in the vector yet.
 			{
 				if (Category == XED_CATEGORY_UNCOND_BR)
-					NrDecodeToBlocks(CodePointer + Displacement, DisplacementAddress, MaxAddress, DecodeBlocks);
+					NrDecodeToBlocks(DisplacementAddress, MaxAddress, DecodeBlocks);
 				else
 				{
-					printf("%d %d addresses.\n", DisplacementAddress, CurrentAddress);
-					NrDecodeToBlocks(CodePointer + Displacement, DisplacementAddress, MaxAddress, DecodeBlocks);
-					NrDecodeToBlocks(CodePointer, CurrentAddress, MaxAddress, DecodeBlocks);
+					NrDecodeToBlocks(DisplacementAddress, MaxAddress, DecodeBlocks);
+					NrDecodeToBlocks(CurrentAddress, MaxAddress, DecodeBlocks);
 				}
 			}
 			break;
 		}
 		else if (Category == XED_CATEGORY_RET)
 			break;
+		//else if (Category == XED_CATEGORY_CALL)
+			//For full file recursive disassembler later...
 
 	}
 	// in theory this is impossible for this to happen, because of the check before the jumps. however this probably still good to have.
 	//if (CurrentAddress = DecodeBlock->StartAddress)//need to delete the block, because we could no isntructions
-	//
+
 	DecodeBlock->EndAddress = CurrentAddress;
 
 
@@ -652,7 +650,7 @@ BOOLEAN NrDecodeImperfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLengt
 		return FALSE;
 
 	STDVECTOR<PDECODE_BLOCK> DecodeBlocks;
-	PDECODE_BLOCK InitialBlock = NrDecodeToBlocks((PUCHAR)RawCode, 0, CodeLength, &DecodeBlocks);
+	PDECODE_BLOCK InitialBlock = NrDecodeToBlocks((PUCHAR)RawCode, (PUCHAR)RawCode + CodeLength, &DecodeBlocks);
 	if (!InitialBlock || !DecodeBlocks.size())
 	{
 		MLog("Failed to decode imperfect code to blocks.\n");
@@ -670,12 +668,12 @@ BOOLEAN NrDecodeImperfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLengt
 	DecodeBlocks.pop_back();
 	IrPutBlockBack(Block, &InitialBlock->Block);
 
-	INT32 LastAddress = InitialBlock->EndAddress;
+	PUCHAR LastAddress = InitialBlock->EndAddress;
 	Free(InitialBlock);
 	while (DecodeBlocks.size())
 	{
-		UINT32 ClosestIndex;
-		INT32 ClosestDelta;
+		UINT64 ClosestIndex;
+		INT64 ClosestDelta;
 		if (!NrGetNextDecodeBlock(LastAddress, &ClosestDelta, &ClosestIndex, &DecodeBlocks))
 		{
 			MLog("Failed to find the next decode block.\n");

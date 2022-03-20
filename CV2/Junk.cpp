@@ -52,7 +52,7 @@ PNATIVE_BLOCK JnkGenerateFunctionPrologue(PNATIVE_BLOCK Block, UINT32 ArgumentCo
 		XedInst1(&InstList[RegHomeStoreCount++], XedGlobalMachineState, XED_ICLASS_PUSH, 64, XedReg(XED_REG_RBP));
 		XedInst2(&InstList[RegHomeStoreCount++], XedGlobalMachineState, XED_ICLASS_MOV, 64, XedReg(XED_REG_RBP), XedReg(XED_REG_RSP));
 	}
-	XedInst2(&InstList[RegHomeStoreCount++], XedGlobalMachineState, XED_ICLASS_SUB, 64, XedReg(XED_REG_RSP), XedImm0(StackAdjustment, XedSignedDispNeededWidth(StackAdjustment)));
+	XedInst2(&InstList[RegHomeStoreCount++], XedGlobalMachineState, XED_ICLASS_SUB, 64, XedReg(XED_REG_RSP), XedImm0(StackAdjustment, XedSignedDispWidth(StackAdjustment)));
 
 	UINT32 OutSize = 0;
 	PUCHAR EncodedData = XedEncodeInstructions(InstList, RegHomeStoreCount, &OutSize);

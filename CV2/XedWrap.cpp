@@ -47,9 +47,59 @@ PUCHAR XedEncodeInstructions(XED_ENCODER_INSTRUCTION* InstList, UINT32 InstCount
 	return FinalBuffer;
 }
 
+XED_CONDITION_CODE XedConditionCodeJcc(XED_ICLASS_ENUM Jcc)
+{
+	switch (Jcc)
+	{
+	case XED_ICLASS_JB: return XED_CC_B;
+	case XED_ICLASS_JBE: return XED_CC_BE;
+	case XED_ICLASS_JL: return XED_CC_L;
+	case XED_ICLASS_JLE: return XED_CC_LE;
+	case XED_ICLASS_JNB: return XED_CC_NB;
+	case XED_ICLASS_JNBE: return XED_CC_NBE;
+	case XED_ICLASS_JNL: return XED_CC_NL;
+	case XED_ICLASS_JNLE: return XED_CC_NLE;
+	case XED_ICLASS_JNO: return XED_CC_NO;
+	case XED_ICLASS_JNP: return XED_CC_NP;
+	case XED_ICLASS_JNS: return XED_CC_NS;
+	case XED_ICLASS_JNZ: return XED_CC_NZ;
+	case XED_ICLASS_JO: return XED_CC_O;
+	case XED_ICLASS_JP: return XED_CC_P;
+	case XED_ICLASS_JS: return XED_CC_S;
+	case XED_ICLASS_JZ: return XED_CC_Z;
+	case XED_ICLASS_JCXZ: return XED_CC_CXZ;
+	case XED_ICLASS_JECXZ: return XED_CC_ECXZ;
+	case XED_ICLASS_JRCXZ: return XED_CC_RCXZ;
+	default: return XED_CC_INVALID;
+	}
+}
+
+XED_CONDITION_CODE XedConditionCodeCMOVcc(XED_ICLASS_ENUM CMOVcc)
+{
+	switch (CMOVcc)
+	{
+	case XED_ICLASS_CMOVB: return XED_CC_B;
+	case XED_ICLASS_CMOVBE: return XED_CC_BE;
+	case XED_ICLASS_CMOVL: return XED_CC_L;
+	case XED_ICLASS_CMOVLE: return XED_CC_LE;
+	case XED_ICLASS_CMOVNB: return XED_CC_NB;
+	case XED_ICLASS_CMOVNBE: return XED_CC_NBE;
+	case XED_ICLASS_CMOVNL: return XED_CC_NL;
+	case XED_ICLASS_CMOVNLE: return XED_CC_NLE;
+	case XED_ICLASS_CMOVNO: return XED_CC_NO;
+	case XED_ICLASS_CMOVNP: return XED_CC_NP;
+	case XED_ICLASS_CMOVNS: return XED_CC_NS;
+	case XED_ICLASS_CMOVNZ: return XED_CC_NZ;
+	case XED_ICLASS_CMOVO: return XED_CC_O;
+	case XED_ICLASS_CMOVP: return XED_CC_P;
+	case XED_ICLASS_CMOVS: return XED_CC_S;
+	case XED_ICLASS_CMOVZ: return XED_CC_Z;
+	default: return XED_CC_INVALID;
+	}
+}
+
 XED_ICLASS_ENUM XedJccToCMOVcc(XED_ICLASS_ENUM Jcc)
 {
-
 	switch (Jcc)
 	{
 	case XED_ICLASS_JB: return XED_ICLASS_CMOVB;
@@ -105,10 +155,9 @@ UINT32 XedCalcWidthBits(LONGLONG Displacement)
 	return log2(abs(Displacement)) + 1;
 }
 
-UINT32 XedSignedDispNeededWidth(LONGLONG Displacement)
+UINT32 XedSignedDispWidth(LONGLONG Displacement)
 {
-	ULONGLONG AbsDisp = abs(Displacement);
-	if ((Displacement <= 0 && AbsDisp < 129) || (Displacement > 0 && AbsDisp < 128))
+	if ((Displacement <= 0 && Displacement > -129) || (Displacement > 0 && Displacement < 128))
 		return 8;
 	return 32;
 }

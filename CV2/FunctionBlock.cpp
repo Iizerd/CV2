@@ -103,7 +103,7 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 	return FunctionBlocks[0];
 }
 
-BOOLEAN FbMakeFunctionBlockPositionIndependent(PFUNCTION_BLOCK FunctionBlock, UINT32 LabelId)
+BOOLEAN FbMakeFunctionBlockPositionIndependent(PFUNCTION_BLOCK FunctionBlock, INT32 LabelId)
 {
 	PFUNCTION_BLOCK NotTaken = FunctionBlock->Absolute.NextBlock;
 

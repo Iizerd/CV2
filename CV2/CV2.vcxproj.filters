@@ -35,6 +35,9 @@
     <ClCompile Include="Junk.cpp">
       <Filter>Obfuscator\Techniques</Filter>
     </ClCompile>
+    <ClCompile Include="LabelManager.cpp">
+      <Filter>Obfuscator\Utilities</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Windas.h">
@@ -75,6 +78,9 @@
     </ClInclude>
     <ClInclude Include="Junk.h">
       <Filter>Obfuscator\Techniques</Filter>
+    </ClInclude>
+    <ClInclude Include="LabelManager.h">
+      <Filter>Obfuscator\Utilities</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -8,6 +8,31 @@ extern "C"
 #include <xed/xed-interface.h>
 }
 
+enum xed_condition_code_t
+{
+	XED_CC_B,
+	XED_CC_BE,
+	XED_CC_L,
+	XED_CC_LE,
+	XED_CC_NB,
+	XED_CC_NBE,
+	XED_CC_NL,
+	XED_CC_NLE,
+	XED_CC_NO,
+	XED_CC_NP,
+	XED_CC_NS,
+	XED_CC_NZ,
+	XED_CC_O,
+	XED_CC_P,
+	XED_CC_S,
+	XED_CC_Z,
+	XED_CC_CXZ,
+	XED_CC_ECXZ,
+	XED_CC_RCXZ,
+	XED_CC_INVALID,
+};
+#define XED_CONDITION_CODE xed_condition_code_t
+
 #define XED_DECODED_INST xed_decoded_inst_t
 #define XED_INST xed_inst_t
 #define XED_OPERAND xed_operand_t
@@ -111,12 +136,16 @@ VOID XedGlobalInit();
 
 PUCHAR XedEncodeInstructions(XED_ENCODER_INSTRUCTION* InstList, UINT32 InstCount, PUINT32 OutSize);
 
+XED_CONDITION_CODE XedConditionCodeJcc(XED_ICLASS_ENUM Jcc);
+
+XED_CONDITION_CODE XedConditionCodeCMOVcc(XED_ICLASS_ENUM Jcc);
+
 XED_ICLASS_ENUM XedJccToCMOVcc(XED_ICLASS_ENUM Jcc);
 
 XED_ICLASS_ENUM XedInvertJcc(XED_ICLASS_ENUM Jcc);
 
 UINT32 XedCalcWidthBits(LONGLONG Displacement);
 
-UINT32 XedSignedDispNeededWidth(LONGLONG Displacement);
+UINT32 XedSignedDispWidth(LONGLONG Displacement);
 
 #endif

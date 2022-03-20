@@ -13,6 +13,27 @@
 #include <cmath>
 #include <mutex>
 
+//Maybe another time...
+//typedef unsigned char U8;
+//typedef unsigned char* PU8;
+//typedef unsigned short U16;
+//typedef unsigned short* PU16;
+//typedef unsigned long U32;
+//typedef unsigned long* PU32;
+//typedef unsigned long long U64;
+//typedef unsigned long long* PU64;
+//
+//typedef char I8;
+//typedef char* PI8;
+//typedef short I16;
+//typedef short* PI16;
+//typedef long I32;
+//typedef long* PI32;
+//typedef long long I64;
+//typedef long long* PI64;
+//
+//typedef unsigned char* PTR;
+
 #define Allocate malloc
 #define Realloc realloc
 #define AllocateS(StructType) (StructType*)calloc(1, sizeof(StructType))

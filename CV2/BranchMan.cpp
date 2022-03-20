@@ -264,7 +264,7 @@ BOOLEAN BmConvertRelativeNonConditionalJumpToAbsolute(PNATIVE_BLOCK Block, INT32
 	return TRUE;
 }
 
-BOOLEAN BmConvertRelativeConditionalJumpToAbsolute(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, UINT32 NewLabelId, INT64 LeftOver)
+BOOLEAN BmConvertRelativeConditionalJumpToAbsolute(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, INT32 NewLabelId, INT64 LeftOver)
 {
 	/*
 	* Relative Conditional Jump emulator.
@@ -362,7 +362,7 @@ Fail1:
 	return FALSE;
 }
 
-BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, UINT32 NewLabelId, INT64 LeftOver)
+BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, INT32 NewLabelId, INT64 LeftOver)
 {
 	/*
 	* Same as above but uses CMOVcc to decide which branch to take.
@@ -447,7 +447,7 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE
 	return TRUE;
 }
 
-BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, UINT32 NewLabelId, INT64 LeftOver)
+BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, INT32 NewLabelId, INT64 LeftOver)
 {
 	/*
 	* Same as above but uses CMOVcc to decide which branch to take.
