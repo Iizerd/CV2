@@ -2,6 +2,7 @@
 #define __FUNCTION_BLOCK_H
 
 #include "NativeRope.h"
+#include "LabelManager.h"
 
 typedef struct _FUNCTION_BLOCK
 {
@@ -26,10 +27,8 @@ STATIC_ASSERT(offsetof(FUNCTION_BLOCK, Absolute.Dummy) == offsetof(FUNCTION_BLOC
 STATIC_ASSERT(offsetof(FUNCTION_BLOCK, Absolute.NextBlock) == offsetof(FUNCTION_BLOCK, Conditional.NotTaken), "FUNCTION_BLOCK union doesn't match up.");
 
 
-//if the current block position independent
-// - if conditional, NotTaken path is given a jump, and the corresponding block gets a label at the front(if it doesnt already have one)
-// - if not conditional, and there is no jump at the end(meaning break is because of a label), a jump is added leading to a label
-BOOLEAN FbMakeFunctionBlockPositionIndependent(PFUNCTION_BLOCK FunctionBlock, INT32 LabelId);
+//All blocks(not first) are now position independent.
+BOOLEAN FbMakeFunctionBlockPositionIndependent(PFUNCTION_BLOCK FunctionBlock, PLABEL_MANAGER LabelId);
 
 //Create a tree that represents the flow of a NATIVE_BLOCK
 PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK Block);

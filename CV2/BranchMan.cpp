@@ -2,6 +2,42 @@
 #include "Logging.h"
 #include "RandomAssembly.h"
 
+PNATIVE_LINK BmGenerateConditionalBranch(XED_ICLASS_ENUM BranchIClass, INT32 TargetLabelId, UINT32 DispWidthBits)
+{
+	XED_ENCODER_INSTRUCTION InstList;
+	XedInst1(&InstList, XedGlobalMachineState, BranchIClass, 64, XedRelBr(0, DispWidthBits));
+
+	UINT32 OutSize = 0;
+	PUCHAR EncodedInst = XedEncodeInstructions(&InstList, 1, &OutSize);
+	if (!EncodedInst || !OutSize)
+		return NULL;
+
+	PNATIVE_LINK Link = NrAllocateLink();
+	if (!Link)
+	{
+		Free(EncodedInst);
+		return NULL;
+	}
+	NrInitForInst(Link);
+	XED_ERROR_ENUM XedError = XedDecode(&Link->DecodedInst, EncodedInst, OutSize); 
+	{
+		NrFreeLink(Link);
+		Free(EncodedInst);
+		return NULL;
+	}
+
+	Link->LinkData.Flags |= CODE_FLAG_IS_REL_JUMP;
+	Link->LinkData.Id = TargetLabelId;
+	Link->RawData = EncodedInst;
+	Link->RawDataSize = OutSize;
+	return Link;
+}
+
+PNATIVE_LINK BmGenerateUnConditionalBranch(INT32 TargetLabelId, UINT32 DispWidthBits)
+{
+	return BmGenerateConditionalBranch(XED_ICLASS_JMP, TargetLabelId, DispWidthBits);
+}
+
 BOOLEAN BmGenerateEmulateRet1(PNATIVE_BLOCK Block, UINT32 JunkSize)
 {
 	//-	POP [RIP + 6 + Delta]		[GROUP_START]
@@ -231,14 +267,10 @@ BOOLEAN BmConvertRelativeNonConditionalJumpToAbsolute(PNATIVE_BLOCK Block, INT32
 	UINT32 OutSize = 0;
 	PUCHAR AssembledCode = XedEncodeInstructions(InstList, 4, &OutSize);
 	if (!AssembledCode || !OutSize)
-	{
-		MLog("Failed to assembly relative jump replacement.\n");
 		return FALSE;
-	}
 
 	if (!NrDecodePerfectEx(Block, AssembledCode, OutSize, DECODER_FLAG_DONT_GENERATE_OPERATIONS))
 	{
-		MLog("Could not decode relative jump replacement.\n");
 		Free(AssembledCode);
 		return FALSE;
 	}
@@ -264,7 +296,7 @@ BOOLEAN BmConvertRelativeNonConditionalJumpToAbsolute(PNATIVE_BLOCK Block, INT32
 	return TRUE;
 }
 
-BOOLEAN BmConvertRelativeConditionalJumpToAbsolute(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, INT32 NewLabelId, INT64 LeftOver)
+BOOLEAN BmConvertRelativeConditionalJumpToAbsolute(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, PLABEL_MANAGER LabelManager, INT64 LeftOver)
 {
 	/*
 	* Relative Conditional Jump emulator.
@@ -289,33 +321,23 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute(PNATIVE_BLOCK Block, PNATIVE_
 
 	XED_ICLASS_ENUM InvertedJccIClass = XedInvertJcc(XedDecodedInstGetIClass(&Jmp->DecodedInst));
 	if (InvertedJccIClass == XED_ICLASS_INVALID)
-	{
-		MLog("Failed to invert Jcc.\n");
 		return FALSE;
-	}
 
 	//Create all parts save for branch.
 	if (!BmConvertRelativeNonConditionalJumpToAbsolute(&TakenBlock, TargetLabelId, LeftOver))
-	{
-		MLog("Failed to create taken branch.\n");
 		goto Fail1;
-	}
 
 	TakenLabelLink = NrAllocateLink();
 	if (!TakenLabelLink)
-	{
-		MLog("Failed to allocate Taken label link.\n");
 		goto Fail2;
-	}
-	NrInitForLabel(TakenLabelLink, NewLabelId, NULL, NULL);
+
+	NrInitForLabel(TakenLabelLink, LmPeekNextId(LabelManager), NULL, NULL);
 
 	//Create branch
 	BranchLink = NrAllocateLink();
 	if (!BranchLink)
-	{
-		MLog("Failed to allocate NotTaken label link.\n");
 		goto Fail3;
-	}
+
 	NrInitForInst(BranchLink);
 	{
 		XED_ENCODER_INSTRUCTION BranchInst;
@@ -325,10 +347,7 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute(PNATIVE_BLOCK Block, PNATIVE_
 		XedInst1(&BranchInst, XedGlobalMachineState, InvertedJccIClass, 8, XedRelBr(0, 8));
 		PUCHAR EncodedInst = XedEncodeInstructions(&BranchInst, 1, &OutSize);
 		if (!EncodedInst || !OutSize)
-		{
-			MLog("Failed to encode branch instruction.");
 			goto Fail4;
-		}
 
 		XED_ERROR_ENUM XedError = XedDecode(&BranchLink->DecodedInst, EncodedInst, OutSize);
 		if (XedError != XED_ERROR_NONE)
@@ -336,7 +355,7 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute(PNATIVE_BLOCK Block, PNATIVE_
 
 		BranchLink->RawData = EncodedInst;
 		BranchLink->RawDataSize = OutSize;
-		BranchLink->LinkData.Id = NewLabelId;
+		BranchLink->LinkData.Id = LmNextId(LabelManager);
 
 		//Manually add the preassembly operation to find the jump label.
 		NrAddPreAssemblyOperation(BranchLink, NrRelativeJumpPreOp, NULL, 0UL, FALSE);
@@ -362,7 +381,7 @@ Fail1:
 	return FALSE;
 }
 
-BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, INT32 NewLabelId, INT64 LeftOver)
+BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, PLABEL_MANAGER LabelManager, INT64 LeftOver)
 {
 	/*
 	* Same as above but uses CMOVcc to decide which branch to take.
@@ -381,10 +400,7 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE
 
 	XED_ICLASS_ENUM CMOVcc = XedJccToCMOVcc(XedDecodedInstGetIClass(&Jmp->DecodedInst));
 	if (CMOVcc == XED_ICLASS_INVALID)
-	{
-		MLog("Could not convert Jcc to CMOVcc.\n");
 		return FALSE;
-	}
 
 	XED_ENCODER_INSTRUCTION InstList[8];
 
@@ -400,14 +416,10 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE
 	UINT32 OutSize = 0;
 	PUCHAR AssembledCode = XedEncodeInstructions(InstList, 8, &OutSize);
 	if (!AssembledCode || !OutSize)
-	{
-		MLog("Failed to assembly relative jump replacement.\n");
 		return FALSE;
-	}
 
 	if (!NrDecodePerfectEx(Block, AssembledCode, OutSize, DECODER_FLAG_DONT_GENERATE_OPERATIONS))
 	{
-		MLog("Could not decode relative conditional jump replacement.\n");
 		Free(AssembledCode);
 		return FALSE;
 	}
@@ -424,7 +436,7 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE
 			T->LinkData.Flags |= CODE_FLAG_USES_LABEL;
 			NrAddPreAssemblyOperation(T, BmInternalRipDeltaFinder, (PVOID)LeftOver, 0UL, FALSE);
 
-			T->Next->LinkData.Id = NewLabelId;
+			T->Next->LinkData.Id = LmPeekNextId(LabelManager);
 			T->Next->LinkData.Flags |= CODE_FLAG_USES_LABEL;
 			NrAddPreAssemblyOperation(T->Next, BmInternalRipDeltaFinder, NULL, 0UL, FALSE);
 			AlreadyAddedOperations = TRUE;
@@ -434,11 +446,10 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE
 	PNATIVE_LINK NotTakenLabelLink = NrAllocateLink();
 	if (!NotTakenLabelLink)
 	{
-		MLog("Could not allocate label link.\n");
 		NrFreeBlock(Block);
 		return FALSE;
 	}
-	NrInitForLabel(NotTakenLabelLink, NewLabelId, NULL, NULL);
+	NrInitForLabel(NotTakenLabelLink, LmNextId(LabelManager), NULL, NULL);
 	IrPutLinkBack(Block, NotTakenLabelLink);
 
 	Block->Front->LinkData.Flags |= CODE_FLAG_GROUP_START;
@@ -447,7 +458,7 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE
 	return TRUE;
 }
 
-BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, INT32 NewLabelId, INT64 LeftOver)
+BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, PLABEL_MANAGER LabelManager, INT64 LeftOver)
 {
 	/*
 	* Same as above but uses CMOVcc to decide which branch to take.
@@ -476,10 +487,7 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block
 	BOOLEAN InvertAddressLoadingOrder = RndGetRandomNum<UINT32>(0, 1);
 	XED_ICLASS_ENUM CMOVcc =  XedJccToCMOVcc(InvertCMOVcc ? XedInvertJcc(XedDecodedInstGetIClass(&Jmp->DecodedInst)) : XedDecodedInstGetIClass(&Jmp->DecodedInst));
 	if (CMOVcc == XED_ICLASS_INVALID)
-	{
-		MLog("Could not convert Jcc to CMOVcc.\n");
 		return FALSE;
-	}
 
 	XED_ENCODER_INSTRUCTION InstList[8];
 	XedInst1(&InstList[0], XedGlobalMachineState, XED_ICLASS_PUSH, 64, XedReg(Reg1));
@@ -505,14 +513,10 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block
 	UINT32 OutSize = 0;
 	PUCHAR AssembledCode = XedEncodeInstructions(InstList, 8, &OutSize);
 	if (!AssembledCode || !OutSize)
-	{
-		MLog("Failed to assembly relative jump replacement.\n");
 		return FALSE;
-	}
 
 	if (!NrDecodePerfectEx(Block, AssembledCode, OutSize, DECODER_FLAG_DONT_GENERATE_OPERATIONS))
 	{
-		MLog("Could not decode relative conditional jump replacement.\n");
 		Free(AssembledCode);
 		return FALSE;
 	}
@@ -529,7 +533,7 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block
 			T->LinkData.Flags |= CODE_FLAG_USES_LABEL;
 			NrAddPreAssemblyOperation(T, BmInternalRipDeltaFinder, (PVOID)LeftOver, 0UL, FALSE);
 
-			T->Next->LinkData.Id = NewLabelId;
+			T->Next->LinkData.Id = LmPeekNextId(LabelManager);
 			T->Next->LinkData.Flags |= CODE_FLAG_USES_LABEL;
 			NrAddPreAssemblyOperation(T->Next, BmInternalRipDeltaFinder, NULL, 0UL, FALSE);
 			AlreadyAddedOperations = TRUE;
@@ -545,12 +549,11 @@ BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block
 	PNATIVE_LINK NotTakenLabelLink = NrAllocateLink();
 	if (!NotTakenLabelLink)
 	{
-		MLog("Could not allocate label link.\n");
 		NrFreeBlock(Block);
 		return FALSE;
 	}
 
-	NrInitForLabel(NotTakenLabelLink, NewLabelId, NULL, NULL);
+	NrInitForLabel(NotTakenLabelLink, LmNextId(LabelManager), NULL, NULL);
 	IrPutLinkBack(Block, NotTakenLabelLink);
 
 

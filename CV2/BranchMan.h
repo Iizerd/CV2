@@ -2,6 +2,7 @@
 #define __BRANCH_MAN_H
 
 #include "NativeRope.h"
+#include "LabelManager.h"
 
 #define DEADSTORE_METHOD_PUSH		0
 #define DEADSTORE_METHOD_MOV		1
@@ -9,6 +10,10 @@
 #define DEADSTORE_METHOD_RANDOM		3
 
 //TODO: Add pre-assembly operations so that all of these no longer need group tags.
+
+PNATIVE_LINK BmGenerateConditionalBranch(XED_ICLASS_ENUM BranchIClass, INT32 TargetLabelId, UINT32 DispWidthBits);
+
+PNATIVE_LINK BmGenerateUnConditionalBranch(INT32 TargetLabelId, UINT32 DispWidthBits);
 
 //Pops the return address into a space allocated in the code, POP [RIP+??]
 BOOLEAN BmGenerateEmulateRet1(PNATIVE_BLOCK Block, UINT32 JunkSize);
@@ -22,13 +27,13 @@ PREOP_STATUS BmInternalRipDeltaFinder(PNATIVE_LINK Link, PVOID Context);
 BOOLEAN BmConvertRelativeNonConditionalJumpToAbsolute(PNATIVE_BLOCK Block, INT32 TargetLabelId, INT64 LeftOver);
 
 //Convert relative conditional jump to absolute one using previous function.
-BOOLEAN BmConvertRelativeConditionalJumpToAbsolute(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, INT32 NewLabelId, INT64 LeftOver);
+BOOLEAN BmConvertRelativeConditionalJumpToAbsolute(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, PLABEL_MANAGER LabelManager, INT64 LeftOver);
 
 //Convert relative conditional jump to absolute one using CMOVcc to edit rip.
-BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, INT32 NewLabelId, INT64 LeftOver);
+BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, PLABEL_MANAGER LabelManager, INT64 LeftOver);
 
 //Same as above, but with added "obfuscation" of inverting the CMOVcc if you want
-BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, INT32 NewLabelId, INT64 LeftOver);
+BOOLEAN BmConvertRelativeConditionalJumpToAbsolute2Randomize(PNATIVE_BLOCK Block, PNATIVE_LINK Jmp, INT32 TargetLabelId, PLABEL_MANAGER LabelManager, INT64 LeftOver);
 
 //Maybe do this with flags? but then the jump target must have a popfq when it starts.
 BOOLEAN BmGenerateNonConditionalConditionalBranch(PNATIVE_BLOCK Block);

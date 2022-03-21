@@ -155,7 +155,6 @@
     <ClCompile Include="InstRope.cpp" />
     <ClCompile Include="Jit.cpp" />
     <ClCompile Include="Junk.cpp" />
-    <ClCompile Include="LabelManager.cpp" />
     <ClCompile Include="Logging.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="NativeRope.cpp" />

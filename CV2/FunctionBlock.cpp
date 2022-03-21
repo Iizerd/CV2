@@ -1,5 +1,6 @@
 #include "FunctionBlock.h"
 #include "Logging.h"
+#include "BranchMan.h"
 
 PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 {
@@ -10,10 +11,8 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 
 	PFUNCTION_BLOCK CurrentBlock = AllocateS(FUNCTION_BLOCK);
 	if (!CurrentBlock)
-	{
-		MLog("Could not allocate memory for first function block.\n");
 		return NULL;
-	}
+
 	CurrentBlock->Block.Front = CodeBlock->Front;
 	
 	for (PNATIVE_LINK T = CodeBlock->Front; T && T != CodeBlock->Back->Next; T = T->Next)
@@ -24,7 +23,6 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 			PFUNCTION_BLOCK NextBlock = AllocateS(FUNCTION_BLOCK);
 			if (!NextBlock)
 			{
-				MLog("Could not allocate memory for next function block.\n");
 				for (PFUNCTION_BLOCK Block : FunctionBlocks)
 					Free(Block);
 				Free(CurrentBlock);
@@ -103,22 +101,64 @@ PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 	return FunctionBlocks[0];
 }
 
-BOOLEAN FbMakeFunctionBlockPositionIndependent(PFUNCTION_BLOCK FunctionBlock, INT32 LabelId)
+BOOLEAN FbMakeFunctionBlockPositionIndependent(PFUNCTION_BLOCK FunctionBlock, PLABEL_MANAGER LabelManager)
 {
-	PFUNCTION_BLOCK NotTaken = FunctionBlock->Absolute.NextBlock;
-
 	if (FunctionBlock->IsConditional)
 	{
+		//Append a jump at end of this block, and a label at the start of the not taken branch.
+
+		PFUNCTION_BLOCK NextBlock = FunctionBlock->Conditional.NotTaken;
+		INT32 JumpLabelId = 0;
+		PNATIVE_LINK LabelLink = NULL;
+		if (NextBlock->Block.Front->LinkData.Flags & CODE_FLAG_IS_LABEL)
+		{
+			JumpLabelId = NextBlock->Block.Front->LinkData.Id;
+		}
+		else
+		{
+			LabelLink = NrAllocateLink();
+			if (!LabelLink)
+				return FALSE;
+			JumpLabelId = LmPeekNextId(LabelManager);
+			NrInitForLabel(LabelLink, JumpLabelId, NULL, NULL);
+		}
+
+		PNATIVE_LINK JumpLink = BmGenerateUnConditionalBranch(JumpLabelId, 32);
+		if (!JumpLink)
+		{
+			if (!LabelLink)
+				NrFreeLink(LabelLink);
+			return FALSE;
+		}
+
+		IrPutLinkBack(&FunctionBlock->Block, JumpLink);
+		if (LabelLink)
+		{
+			IrPutLinkFront(NextBlock, LabelLink);
+			LmNextId(LabelManager);
+		}
 
 	}
 	else if (FunctionBlock->Block.Back->LinkData.Flags & CODE_FLAG_IS_REL_JUMP)
 	{
-
+		//Don't need to do anything.
+		return TRUE;
 	}
+	else if (FunctionBlock->Absolute.NextBlock)
+	{
+		//This is when a block ends because there is a label, simply append jump which has target of the label at start of next block.
 
-	PNATIVE_LINK JumpLink = NrAllocateLink();
+		PNATIVE_LINK LabelLink = FunctionBlock->Absolute.NextBlock->Block.Front;
+		if (!(LabelLink->LinkData.Flags & CODE_FLAG_IS_LABEL))
+			return FALSE;
+		
 
+		PNATIVE_LINK JumpLink = BmGenerateUnConditionalBranch(LabelLink->LinkData.Id, 32);
+		if (!JumpLink)
+			return FALSE;
 
+		IrPutLinkBack(FunctionBlock, JumpLink);
+	}
 }
 
 VOID FbPrintTakenPath(PFUNCTION_BLOCK TreeHead)

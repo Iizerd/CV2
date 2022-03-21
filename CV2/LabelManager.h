@@ -4,10 +4,24 @@
 #include "Windas.h"
 #include "NativeRope.h"
 
-INT32 LmInitForBlock(PNATIVE_BLOCK Block);
+typedef INT32 LABEL_MANAGER, *PLABEL_MANAGER;
 
-INT32 LmPeekNextId(INT32 LableManager);
 
-INT32 LmNextId(INT32 LabelManager);
+INLINE VOID LmInitFromBlock(PLABEL_MANAGER LabelManager, PNATIVE_BLOCK Block)
+{
+	IrGetMaxId(Block, LabelManager);
+}
+
+#define LmPeekNextId(LabelManager) ((*LabelManager) + 1)
+//INLINE INT32 LmPeekNextId(INT32 LabelManager)
+//{
+//	return LabelManager + 1;
+//}
+
+#define LmNextId(LabelManager) (++(*LabelManager))
+//INLINE INT32 LmNextId(INT32 LabelManager)
+//{
+//	return ++LabelManager;
+//}
 
 #endif

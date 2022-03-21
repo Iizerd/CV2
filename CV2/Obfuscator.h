@@ -2,7 +2,7 @@
 #define __OBFUSCATOR_H
 
 #include "NativeRope.h"
-
+#include "LabelManager.h"
 /*
 * Ideas:
 *		Ret instruction remover:
@@ -27,8 +27,13 @@
 * 	
 */
 
+typedef struct _OBF
+{
+	NATIVE_BLOCK Block;
+	LABEL_MANAGER LabelManager;
+}OBF, *POBF;
 
-
+BOOLEAN ObfInitFromBlock(POBF Obf, PNATIVE_BLOCK Block);
 
 
 #endif
