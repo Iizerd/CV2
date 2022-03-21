@@ -50,13 +50,14 @@ typedef struct _NATIVE_LINK
 	PVOID				RawData;
 	UINT32				RawDataSize;
 	XED_DECODED_INST	DecodedInst;
-}NATIVE_LINK, *PNATIVE_LINK;
+}NATIVE_LINK, *PNATIVE_LINK; STATIC_ASSERT(offsetof(NATIVE_LINK, PreAssemblyOperations) == sizeof(INST_LINK), "Bad NATIVE_LINK header.");
 
 typedef struct _NATIVE_BLOCK
 {
 	PNATIVE_LINK Front;
 	PNATIVE_LINK Back;
-}NATIVE_BLOCK, *PNATIVE_BLOCK;
+	LABEL_MANAGER LabelManager;
+}NATIVE_BLOCK, *PNATIVE_BLOCK; STATIC_ASSERT(sizeof(NATIVE_BLOCK) == 24, "Bad NATIVE_BLOCK size.");
 
 typedef struct _DECODE_BLOCK
 {

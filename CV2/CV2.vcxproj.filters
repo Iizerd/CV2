@@ -23,9 +23,6 @@
     <ClCompile Include="BranchMan.cpp">
       <Filter>Obfuscator\Techniques</Filter>
     </ClCompile>
-    <ClCompile Include="FunctionBlock.cpp">
-      <Filter>Obfuscator\Utilities</Filter>
-    </ClCompile>
     <ClCompile Include="Jit.cpp">
       <Filter>Obfuscator\Techniques</Filter>
     </ClCompile>
@@ -33,6 +30,9 @@
       <Filter>Obfuscator</Filter>
     </ClCompile>
     <ClCompile Include="Junk.cpp">
+      <Filter>Obfuscator\Techniques</Filter>
+    </ClCompile>
+    <ClCompile Include="FunctionBlock.cpp">
       <Filter>Obfuscator\Techniques</Filter>
     </ClCompile>
   </ItemGroup>
@@ -64,9 +64,6 @@
     <ClInclude Include="BranchMan.h">
       <Filter>Obfuscator\Techniques</Filter>
     </ClInclude>
-    <ClInclude Include="FunctionBlock.h">
-      <Filter>Obfuscator\Utilities</Filter>
-    </ClInclude>
     <ClInclude Include="Jit.h">
       <Filter>Obfuscator\Techniques</Filter>
     </ClInclude>
@@ -76,8 +73,11 @@
     <ClInclude Include="Junk.h">
       <Filter>Obfuscator\Techniques</Filter>
     </ClInclude>
+    <ClInclude Include="FunctionBlock.h">
+      <Filter>Obfuscator\Techniques</Filter>
+    </ClInclude>
     <ClInclude Include="LabelManager.h">
-      <Filter>Obfuscator\Utilities</Filter>
+      <Filter>Core</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -98,9 +98,6 @@
     </Filter>
     <Filter Include="Obfuscator\Techniques">
       <UniqueIdentifier>{25549e73-4289-4d10-ba41-2861bcdede45}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Obfuscator\Utilities">
-      <UniqueIdentifier>{e1bf0645-4d0d-4bc3-8030-b30205cfab82}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

@@ -418,8 +418,6 @@ BOOLEAN NrIsRipRelativeInstruction(PNATIVE_LINK Link, PINT32 Delta)
 
 BOOLEAN NrHandleDisplacementInstructions(PNATIVE_BLOCK Block)
 {
-	INT32 CurrentId = 0;
-
 	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
 		if (!(T->LinkData.Flags & CODE_FLAG_IS_INST))
@@ -446,11 +444,11 @@ BOOLEAN NrHandleDisplacementInstructions(PNATIVE_BLOCK Block)
 					MLog("Failed to allocate label link.\n");
 					return FALSE;
 				}
-				NrInitForLabel(LabelLink, CurrentId, NULL, NULL);
+				INT32 LabelId = LmNextId(&Block->LabelManager);
+				NrInitForLabel(LabelLink, LabelId, NULL, NULL);
 				LabelLink->LinkData.Flags |= CODE_FLAG_IS_JUMP_TARGET;
 				IrInsertLinkBefore(Block, TargetLink, LabelLink);
-				T->LinkData.Id = CurrentId;
-				++CurrentId;
+				T->LinkData.Id = LabelId;
 			}
 
 			NrAddPreAssemblyOperation(T, NrRelativeJumpPreOp, (PVOID)(INT64)LeftOver, 0UL, FALSE);
@@ -476,10 +474,10 @@ BOOLEAN NrHandleDisplacementInstructions(PNATIVE_BLOCK Block)
 					MLog("Failed to allocate label link.\n");
 					return FALSE;
 				}
-				NrInitForLabel(LabelLink, CurrentId, NULL, NULL);
+				INT32 LabelId = LmNextId(&Block->LabelManager);
+				NrInitForLabel(LabelLink, LabelId, NULL, NULL);
 				IrInsertLinkBefore(Block, TargetLink, LabelLink);
-				T->LinkData.Id = CurrentId;
-				++CurrentId;
+				T->LinkData.Id = LabelId;
 			}
 
 			NrAddPreAssemblyOperation(T, NrRipRelativePreOp, (PVOID)(INT64)LeftOver, 0UL, FALSE);
@@ -645,6 +643,7 @@ BOOLEAN NrDecodeImperfect(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength)
 BOOLEAN NrDecodeImperfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength, UINT32 Flags)
 {
 	Block->Front = Block->Back = NULL;
+	LmClear(&Block->LabelManager);
 
 	if (!RawCode || !CodeLength)
 		return FALSE;
@@ -729,7 +728,7 @@ BOOLEAN NrDecodePerfect(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength)
 BOOLEAN NrDecodePerfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength, UINT32 Flags)
 {
 	Block->Front = Block->Back = NULL;
-
+	LmClear(&Block->LabelManager);
 	if (!RawCode || !CodeLength)
 		return FALSE;
 

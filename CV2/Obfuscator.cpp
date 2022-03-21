@@ -4,5 +4,5 @@
 
 BOOLEAN ObfInitFromBlock(POBF Obf, PNATIVE_BLOCK Block)
 {
-	LmInitFromBlock(&Obf->LabelManager, Block);
+	//LmInitFromBlock(&Obf->LabelManager, Block);
 }

@@ -300,6 +300,14 @@ VOID _IrRebaseIds(PINST_BLOCK Block, INT32 IdBase)
 VOID _IrPrepForMerge(PINST_BLOCK Block1, PINST_BLOCK Block2)
 {
 	INT32 HighestId = 0;
-	if (_IrGetMaxId(Block1, &HighestId))
-		_IrRebaseIds(Block2, HighestId + 1);
+	/*if (_IrGetMaxId(Block1, &HighestId))
+		_IrRebaseIds(Block2, HighestId + 1);*/
+	if (Block1->LabelManager)
+		_IrRebaseIds(Block1, LmPeekNextId(&Block1->LabelManager));
+}
+
+VOID _IrUpdateLabelManager(PINST_BLOCK Block)
+{
+	if (!_IrGetMaxId(Block, LmCurrentIdPtr(&Block->LabelManager)))
+		*LmCurrentIdPtr(&Block->LabelManager) = 0;
 }

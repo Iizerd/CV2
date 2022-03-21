@@ -30,7 +30,6 @@
 typedef struct _OBF
 {
 	NATIVE_BLOCK Block;
-	LABEL_MANAGER LabelManager;
 }OBF, *POBF;
 
 BOOLEAN ObfInitFromBlock(POBF Obf, PNATIVE_BLOCK Block);

@@ -2,6 +2,7 @@
 #define __INST_ROPE_H
 
 #include "Windas.h"
+#include "LabelManager.h"
 
 //https://www.youtube.com/watch?v=W8U77LUdaBM
 
@@ -51,7 +52,8 @@ typedef struct _INST_BLOCK
 {
 	PINST_LINK		Front;
 	PINST_LINK		Back;
-}INST_BLOCK, * PINST_BLOCK; STATIC_ASSERT(sizeof(INST_BLOCK) == 16, "Bad INST_BLOCK size.");
+	LABEL_MANAGER	LabelManager;
+}INST_BLOCK, * PINST_BLOCK; STATIC_ASSERT(sizeof(INST_BLOCK) == 24, "Bad INST_BLOCK size.");
 
 typedef VOID(*FnForEachCallback)(PINST_LINK);
 VOID _IrForEachLink(PINST_BLOCK Block, FnForEachCallback Callback);
@@ -127,5 +129,8 @@ VOID _IrRebaseIds(PINST_BLOCK Block, INT32 LabelBase);
 //Assures that there are no conflicting labels in the two blocks.
 VOID _IrPrepForMerge(PINST_BLOCK Block1, PINST_BLOCK Block2);
 #define IrPrepForMerge(Block1, Block2) _IrPrepForMerge((PINST_BLOCK)Block1, (PINST_BLOCK)Block2)
+
+VOID _IrUpdateLabelManager(PINST_BLOCK Block);
+#define IrUpdateLabelManager(Block) _IrUpdateLabelManager((PINST_BLOCK)Block)
 
 #endif
