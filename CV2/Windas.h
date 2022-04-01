@@ -56,8 +56,8 @@
 template<typename NumType>
 INLINE NumType RndGetRandomNum(NumType Min, NumType Max)
 {
-	std::random_device RandomDevice;
-	std::default_random_engine Generator(RandomDevice());
+	static std::random_device RandomDevice;
+	static std::default_random_engine Generator(RandomDevice());
 	std::uniform_int_distribution<NumType> Distribution(Min, Max);
 	return Distribution(Generator);
 }

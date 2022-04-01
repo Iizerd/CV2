@@ -129,6 +129,7 @@ enum xed_condition_code_t
 #define XedImm0 xed_imm0
 
 #define XedPatchRelbr xed_patch_relbr
+#define XedPatchDisp xed_patch_disp
 
 inline XED_STATE XedGlobalMachineState;
 

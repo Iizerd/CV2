@@ -14,4 +14,8 @@ typedef INT32 LABEL_MANAGER, *PLABEL_MANAGER;
 
 #define LmCurrentIdPtr(LabelManager) ((PINT32)(LabelManager))
 
+#define LmSave(LabelManager) ((INT32)LabelManager)
+
+#define LmRestore(LabelManager, oLabelManager) LabelManager = oLabelManager
+
 #endif

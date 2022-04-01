@@ -17,8 +17,12 @@
 #define CODE_FLAG_GROUP_END		IrGeneralFlag(4) //End of a group
 #define CODE_FLAG_IN_GROUP		IrGeneralFlag(5) //Everything between and including start/end of a group have this. Must all be treated as an inseparable block.
 #define CODE_FLAG_USES_LABEL	IrGeneralFlag(6)
+#define CODE_FLAG_DO_NOT_TOUCH	IrGeneralFlag(7)
 
 #define CODE_FLAG_OCCUPIES_SPACE	(CODE_FLAG_IS_INST | CODE_FLAG_IS_RAW_DATA) //Physically exists. RawDataSize and RawData are valid.
+
+
+#define INVALID_LABEL_ID 0xFFFFFFFF
 
 typedef struct _LINK_DATA
 {

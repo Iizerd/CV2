@@ -20,6 +20,7 @@ PNATIVE_LINK BmGenerateConditionalBranch(XED_ICLASS_ENUM BranchIClass, INT32 Tar
 	}
 	NrInitForInst(Link);
 	XED_ERROR_ENUM XedError = XedDecode(&Link->DecodedInst, EncodedInst, OutSize); 
+	if (XedError != XED_ERROR_NONE)
 	{
 		NrFreeLink(Link);
 		Free(EncodedInst);

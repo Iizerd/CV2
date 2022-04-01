@@ -208,6 +208,12 @@ UINT32 NrCalcBlockSize(PNATIVE_BLOCK Block)
 	return Total;
 }
 
+BOOLEAN NrPrepentLabelsToAll(PNATIVE_BLOCK Block)
+{
+	//do this
+	return FALSE;
+}
+
 PNATIVE_LINK NrValidateDelta(PNATIVE_LINK Start, INT32 Delta, PINT32 LeftOver)
 {
 	PNATIVE_LINK T;
@@ -484,6 +490,7 @@ BOOLEAN NrHandleDisplacementInstructions(PNATIVE_BLOCK Block)
 			T->LinkData.Flags |= (CODE_FLAG_IS_RIP_RELATIVE | CODE_FLAG_USES_LABEL);
 		}
 	}
+	return TRUE;
 }
 
 BOOLEAN NrIsAddressInDecodedBlockRange(PUCHAR Address, STDVECTOR<PDECODE_BLOCK>* DecodeBlocks)

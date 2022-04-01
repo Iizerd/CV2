@@ -93,6 +93,9 @@ BOOLEAN NrDeepCopyBlock2(PNATIVE_BLOCK Dest, PNATIVE_BLOCK Source);
 
 UINT32 NrCalcBlockSize(PNATIVE_BLOCK Block);
 
+//Put a label before every instruction in a block so that they can all be targeted.
+BOOLEAN NrPrepentLabelsToAll(PNATIVE_BLOCK Block);
+
 PNATIVE_LINK NrValidateDelta(PNATIVE_LINK Start, INT32 Delta, PINT32 LeftOver);
 
 BOOLEAN NrCalcRipDelta(PNATIVE_LINK Link, PINT32 DeltaOut);
