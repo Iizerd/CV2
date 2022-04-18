@@ -1,6 +1,6 @@
 #include "FunctionBlock.h"
 #include "Logging.h"
-#include "BranchMan.h"
+#include "Emulation.h"
 
 PFUNCTION_BLOCK FbCreateTree(PNATIVE_BLOCK CodeBlock)
 {
@@ -123,7 +123,7 @@ BOOLEAN FbMakeFunctionBlockPositionIndependent(PFUNCTION_BLOCK FunctionBlock, PL
 			NrInitForLabel(LabelLink, JumpLabelId, NULL, NULL);
 		}
 
-		PNATIVE_LINK JumpLink = BmGenerateUnConditionalBranch(JumpLabelId, 32);
+		PNATIVE_LINK JumpLink = EmUnConditionalBranch(JumpLabelId, 32);
 		if (!JumpLink)
 		{
 			if (!LabelLink)
@@ -153,7 +153,7 @@ BOOLEAN FbMakeFunctionBlockPositionIndependent(PFUNCTION_BLOCK FunctionBlock, PL
 			return FALSE;
 		
 
-		PNATIVE_LINK JumpLink = BmGenerateUnConditionalBranch(LabelLink->LinkData.Id, 32);
+		PNATIVE_LINK JumpLink = EmUnConditionalBranch(LabelLink->LinkData.Id, 32);
 		if (!JumpLink)
 			return FALSE;
 

@@ -311,3 +311,21 @@ VOID _IrUpdateLabelManager(PINST_BLOCK Block)
 	if (!_IrGetMaxId(Block, LmCurrentIdPtr(&Block->LabelManager)))
 		*LmCurrentIdPtr(&Block->LabelManager) = 0;
 }
+
+PINST_LINK _IrPopBack(PINST_BLOCK Block)
+{
+	if (Block->Back)
+	{
+		PINST_LINK T = Block->Back;
+		if (Block->Back == Block->Front)
+		{
+			Block->Front = Block->Back = NULL;
+			return T;
+		}
+		Block->Back = Block->Back->Prev;
+		Block->Back->Next = NULL;
+		T->Prev = NULL;
+		return T;
+	}
+	return NULL;
+}

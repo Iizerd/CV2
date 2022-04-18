@@ -20,9 +20,6 @@
     <ClCompile Include="Obfuscator.cpp">
       <Filter>Obfuscator</Filter>
     </ClCompile>
-    <ClCompile Include="BranchMan.cpp">
-      <Filter>Obfuscator\Techniques</Filter>
-    </ClCompile>
     <ClCompile Include="Jit.cpp">
       <Filter>Obfuscator\Techniques</Filter>
     </ClCompile>
@@ -34,6 +31,12 @@
     </ClCompile>
     <ClCompile Include="FunctionBlock.cpp">
       <Filter>Obfuscator\Techniques</Filter>
+    </ClCompile>
+    <ClCompile Include="Emulation.cpp">
+      <Filter>Obfuscator\Techniques</Filter>
+    </ClCompile>
+    <ClCompile Include="DriverIdxCall.cpp">
+      <Filter>DriverIdxCall</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -61,9 +64,6 @@
     <ClInclude Include="Obfuscator.h">
       <Filter>Obfuscator</Filter>
     </ClInclude>
-    <ClInclude Include="BranchMan.h">
-      <Filter>Obfuscator\Techniques</Filter>
-    </ClInclude>
     <ClInclude Include="Jit.h">
       <Filter>Obfuscator\Techniques</Filter>
     </ClInclude>
@@ -78,6 +78,12 @@
     </ClInclude>
     <ClInclude Include="LabelManager.h">
       <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Emulation.h">
+      <Filter>Obfuscator\Techniques</Filter>
+    </ClInclude>
+    <ClInclude Include="DriverIdxCall.h">
+      <Filter>DriverIdxCall</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -98,6 +104,9 @@
     </Filter>
     <Filter Include="Obfuscator\Techniques">
       <UniqueIdentifier>{25549e73-4289-4d10-ba41-2861bcdede45}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="DriverIdxCall">
+      <UniqueIdentifier>{37bca975-d70e-4ec6-8315-5fba5a874cba}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

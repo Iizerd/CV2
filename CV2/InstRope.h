@@ -137,4 +137,8 @@ VOID _IrPrepForMerge(PINST_BLOCK Block1, PINST_BLOCK Block2);
 VOID _IrUpdateLabelManager(PINST_BLOCK Block);
 #define IrUpdateLabelManager(Block) _IrUpdateLabelManager((PINST_BLOCK)Block)
 
+PINST_LINK _IrPopBack(PINST_BLOCK Block);
+#define IrPopBack(Block) _IrPopBack((PINST_BLOCK)Block)
+
+
 #endif

@@ -3,34 +3,59 @@
 #include "InstRope.h"
 #include "NativeRope.h"
 #include "FunctionBlock.h"
-#include "BranchMan.h"
+#include "DriverIdxCall.h"
 #include "Junk.h"
 #include "Jit.h"
 #include <iomanip>
+#include <fstream>
 
 //UCHAR TestArray[] = { 0x48, 0x09, 0xC0, 0x48, 0x09, 0xC0, 0x75, 0x06, 0x48, 0x21, 0xDB, 0x48, 0x21, 0xDB, 0x48, 0x31, 0xC9, 0x48, 0x31, 0xC9 };
 
 //UCHAR TestArray[] = { 0x48, 0x8B, 0x05, 0x17, 0x00, 0x00, 0x00, 0x48, 0x89, 0x05, 0xE7, 0x00, 0x00, 0x00, 0x48, 0x8D, 0x05, 0xF0, 0x06, 0x00, 0x00, 0x48, 0x31, 0xC0, 0x48, 0x31, 0xC0, 0x31, 0xC0, 0x48, 0x8D, 0x05, 0x02, 0x00, 0x00, 0x00 };
 
-UCHAR JitTest[] = { 0x48, 0xC7, 0xC0, 0xF0, 0x06, 0x00, 0x00, 0xc3};
+UCHAR JitTest[] = { 0x48, 0x09, 0xC9, 0x48, 0x21, 0xC9, 0x48, 0x09, 0xD2, 0x48, 0x21, 0xD2, 0x48, 0x89, 0xC8, 0x48, 0x01, 0xD0, 0x48, 0x21, 0xC0, 0x48, 0x09, 0xC0, 0x48, 0xC7, 0xC1, 0xF0, 0x06, 0x00, 0x00, 0x48, 0xC7, 0xC2, 0xCE, 0x07, 0x00, 0x00, 0x48, 0x31, 0xC9, 0x48, 0x31, 0xD2, 0xC3 };
 
 
-typedef INT64(*FnBlackMan)();
+typedef INT64(*FnAdd)(INT64 First, INT64 Second);
 
 int main()
 {
 	srand(time(NULL));
 	XedGlobalInit();
 
-	NATIVE_BLOCK Block;
+	UINT32 FuncAddrOff, GadgetAddrOff;
+	NATIVE_BLOCK IdxCallBlock;
+	if (!DiGenerateNonVolatileCallGadget(&IdxCallBlock, XED_REG_R11, &FuncAddrOff, &GadgetAddrOff))
+	{
+		printf("failed to create the idx call block.\n");
+	}
+	else
+	{
+		UINT32 AsmSize = 0;
+		PVOID Asm = NrEncode(&IdxCallBlock, &AsmSize);
+
+		for (ULONG i = 0; i < AsmSize; i++)
+			printf("%02x ", ((PUCHAR)Asm)[i]);
+		printf("\n");
+		printf("%02x %02x \n", FuncAddrOff, GadgetAddrOff);
+	}
+
+	/*NATIVE_BLOCK Block;
 	Block.Front = Block.Back = NULL;
 	NrDecodeImperfect(&Block, JitTest, sizeof(JitTest));
-
-	NATIVE_BLOCK JitBlock;
-	JitMakeText(&Block, &JitBlock, "HOLYSHITIMBLACK", JIT_TYPE_XOR);
+	PINST_LINK RetLink = IrPopBack(&Block);
+	NATIVE_BLOCK JitBlock, JitBlock2;
+	if (!JitMakeText(&Block, &JitBlock, &JitBlock2, "Oh idk I guess I think about killing myself pretty frequently... And why not? Whats so great about living?", MakeJitType(JIT_PRETYPE_XOR, JIT_POSTTYPE_XOR)))
+	{
+		printf("failed.\n");
+		system("pause");
+	}
 	printf("JitBlock size %d\n", IrCountLinks(&JitBlock));
+	printf("JitBlock2 size %d\n", IrCountLinks(&JitBlock2));
 	printf("Block size %d\n", IrCountLinks(&Block));
 	IrPutBlockFront(&Block, &JitBlock);
+	IrPutBlockBack(&Block, &JitBlock2);
+	IrPutLinkBack(&Block, RetLink);
 
 	NrDebugPrintIClass(&Block);
 
@@ -41,11 +66,16 @@ int main()
 		printf("%02x ", ((PUCHAR)Asm)[i]);
 	printf("\n");
 
+	std::ofstream FileThing("C:\\Users\\Iizerd\\Desktop\\Leeg Hake\\Test.m", std::ios::binary);
+	FileThing.write((PCHAR)Asm, AsmSize);
+	FileThing.close();
+
+
 	PVOID meme = VirtualAlloc(NULL, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 	RtlCopyMemory(meme, Asm, AsmSize);
 
 	system("pause");
-	printf("The value %lld\n", ((FnBlackMan)meme)());
+	printf("The value %lld\n", ((FnAdd)meme)(5, 10));*/
 
 	//NATIVE_BLOCK Block;
 	//Block.Front = Block.Back = NULL;

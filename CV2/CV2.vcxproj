@@ -41,14 +41,14 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <SpectreMitigation>false</SpectreMitigation>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
@@ -150,7 +150,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="BranchMan.cpp" />
+    <ClCompile Include="DriverIdxCall.cpp" />
+    <ClCompile Include="Emulation.cpp" />
     <ClCompile Include="FunctionBlock.cpp" />
     <ClCompile Include="InstRope.cpp" />
     <ClCompile Include="Jit.cpp" />
@@ -164,7 +165,8 @@
     <ClCompile Include="XedWrap.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="BranchMan.h" />
+    <ClInclude Include="DriverIdxCall.h" />
+    <ClInclude Include="Emulation.h" />
     <ClInclude Include="FunctionBlock.h" />
     <ClInclude Include="InstRope.h" />
     <ClInclude Include="Jit.h" />

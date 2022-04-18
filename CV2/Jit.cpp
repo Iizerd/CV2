@@ -30,23 +30,33 @@ VOID JitGetSizes(UINT32 TotalSize, STDVECTOR<UINT32>* Sizes)
 	}
 }
 
-XED_ICLASS_ENUM JitTypeToIClass(UINT32 JitType)
+XED_ICLASS_ENUM JitPreTypeToIClass(JIT_TYPE JitType)
 {
-	switch (JitType)
+	switch (JitPreType(JitType))
 	{
-	case JIT_TYPE_XOR: return XED_ICLASS_XOR;
-	case JIT_TYPE_AND: return XED_ICLASS_AND;
-	case JIT_TYPE_OR: return XED_ICLASS_OR;
-	case JIT_TYPE_MOV: return XED_ICLASS_MOV;
+	case JIT_PRETYPE_XOR: return XED_ICLASS_XOR;
+	case JIT_PRETYPE_AND: return XED_ICLASS_AND;
+	case JIT_PRETYPE_OR: return XED_ICLASS_OR;
+	case JIT_PRETYPE_MOV: return XED_ICLASS_MOV;
 	default: return XED_ICLASS_INVALID;
 	}
 }
 
-PNATIVE_LINK JitCreateJitInstLink(UINT32 ImmSize, UINT32 JitType)
+XED_ICLASS_ENUM JitPostTypeToIClass(JIT_TYPE JitType)
+{
+	switch (JitPostType(JitType))
+	{
+	case JIT_POSTTYPE_XOR: return XED_ICLASS_XOR;
+	case JIT_POSTTYPE_MOV: return XED_ICLASS_AND;
+	default: return XED_ICLASS_INVALID;
+	}
+}
+
+PNATIVE_LINK JitCreateJitInstLink(UINT32 ImmSize, JIT_TYPE JitType)
 {
 	UINT32 ImmSizeBits = ImmSize * 8;
 	XED_ENCODER_INSTRUCTION InstList;
-	XedInst2(&InstList, XedGlobalMachineState, JitTypeToIClass(JitType), ImmSizeBits, 
+	XedInst2(&InstList, XedGlobalMachineState, JitPreTypeToIClass(JitType), ImmSizeBits, 
 		XedMemBD(XED_REG_RIP, XedDisp(0, 32), ImmSizeBits), 
 		XedImm0(0, ImmSizeBits));
 
@@ -75,14 +85,12 @@ PNATIVE_LINK JitCreateJitInstLink(UINT32 ImmSize, UINT32 JitType)
 	return Link;
 }
 
-PNATIVE_LINK JitDoForData(PUCHAR InstData, PUCHAR Text, UINT32 Length, UINT32 InstLabel, INT32 Offset, UINT32 JitType)
+BOOLEAN JitMakeLinks(PUCHAR InstData, PNATIVE_LINK* PreLink, PNATIVE_LINK* PostLink, PUCHAR Text, UINT32 Length, UINT32 InstLabel, INT32 Offset, JIT_TYPE JitType)
 {
-	if (JitType == JIT_TYPE_RANDOM)
-		JitType = RndGetRandomNum<UINT32>(1, 3);
-
-	switch (JitType)
+	UCHAR Buffer[4];
+	switch (JitPreType(JitType))
 	{
-	case JIT_TYPE_XOR:
+	case JIT_PRETYPE_XOR:
 	{
 		/*
 		*	Needs to be:A Looks like:B => B^X = A
@@ -93,52 +101,69 @@ PNATIVE_LINK JitDoForData(PUCHAR InstData, PUCHAR Text, UINT32 Length, UINT32 In
 		*	Curr Is : 110
 		*	Must Be : 101
 		*/
-		PUCHAR Buffer = (PUCHAR)Allocate(Length);
-		if (!Buffer)
-		{
-			MLog("Failed to allocate buffer.\n");
-			return NULL;
-		}
+
 		for (UINT32 i = 0; i < Length; i++)
 		{
 			Buffer[i] = InstData[i] ^ Text[i];
 			InstData[i] = Text[i];
 		}
-		PNATIVE_LINK JitLink = JitCreateJitInstLink(Length, JitType);
-		if (!JitLink)
-		{
-			MLog("Failed to create Jit Inst Link.\n");
-			return NULL;
-		}
-		JitLink->LinkData.Id = InstLabel;
 
-		NrAddPreAssemblyOperation(JitLink, JitPreop, (PVOID)(INT64)Offset, 0UL, FALSE);
+		PNATIVE_LINK _PostLink = NULL, _PreLink = JitCreateJitInstLink(Length, JitType);
+		if (!_PreLink)
+			return FALSE;
 
+		_PreLink->LinkData.Id = InstLabel;
+		NrAddPreAssemblyOperation(_PreLink, JitPreop, (PVOID)(INT64)Offset, 0UL, FALSE);
 		switch (Length)
 		{
-		case 1: *(PUINT8) & (((PUCHAR)JitLink->RawData)[JitLink->RawDataSize - Length]) = *(PUINT8)Buffer; break;
-		case 2: *(PUINT16) & (((PUCHAR)JitLink->RawData)[JitLink->RawDataSize - Length]) = *(PUINT16)Buffer; break;
-		case 4:	*(PUINT32) & (((PUCHAR)JitLink->RawData)[JitLink->RawDataSize - Length]) = *(PUINT32)Buffer; break;
+		case 1: *(PUINT8)&(((PUCHAR)_PreLink->RawData)[_PreLink->RawDataSize - Length]) = *(PUINT8)Buffer; break;
+		case 2: *(PUINT16)&(((PUCHAR)_PreLink->RawData)[_PreLink->RawDataSize - Length]) = *(PUINT16)Buffer; break;
+		case 4:	*(PUINT32)&(((PUCHAR)_PreLink->RawData)[_PreLink->RawDataSize - Length]) = *(PUINT32)Buffer; break;
 		}
 
-		return JitLink;
+		switch (JitPostType(JitType))
+		{
+		case JIT_POSTTYPE_MOV:
+			_PostLink = JitCreateJitInstLink(Length, JitType);
+			if (!_PostLink)
+			{
+				MLog("failed to make mov xor postlink.\n");
+				NrFreeLink(_PreLink);
+				return FALSE;
+			}
+			break;
+		case JIT_POSTTYPE_XOR:
+			_PostLink = NrAllocateLink();
+			if (!PostLink)
+			{
+				MLog("Failed to make jit xor postlink.\n");
+				NrFreeLink(_PreLink);
+				return FALSE;
+			}
+			NrDeepCopyLink(_PostLink, _PreLink);
+
+		}
+		*PostLink = _PostLink;
+		*PreLink = _PreLink;
+		
+		return TRUE;
 	}
-	case JIT_TYPE_AND:
-	case JIT_TYPE_OR:
-	case JIT_TYPE_MOV:
-		return NULL;
+	case JIT_PRETYPE_AND:
+	case JIT_PRETYPE_OR:
+	case JIT_PRETYPE_MOV:
+		return FALSE;
 	}
-	return NULL;
+	return FALSE;
 }
 
-//BE SURE TO MAKE DEEP COPY OF THIS BECAUSE YOU NEED TO XOR IT BACK AFTER EXECUTION
-BOOLEAN JitMakeJitter(PNATIVE_LINK Inst, UINT32 InstLabel, PNATIVE_BLOCK JitterBlock, PUCHAR Text, ULONG TextLength, UINT32 JitType)
+BOOLEAN JitMakeJitter(PNATIVE_LINK Inst, UINT32 InstLabel, PNATIVE_BLOCK PreBlock, PNATIVE_BLOCK PostBlock, PUCHAR Text, ULONG TextLength, JIT_TYPE JitType)
 {
 	if (!Inst->RawData || !Inst->RawDataSize)
 		return FALSE;
 
-	JitterBlock->Front = JitterBlock->Back = NULL;
-	LmClear(&JitterBlock->LabelManager);
+	PreBlock->Front = PreBlock->Back = PostBlock->Front = PostBlock->Back = NULL;
+	LmClear(&PreBlock->LabelManager);
+	LmClear(&PostBlock->LabelManager);
 
 	PUCHAR FullText = (PUCHAR)Allocate(Inst->RawDataSize);
 	if (!FullText)
@@ -155,35 +180,39 @@ BOOLEAN JitMakeJitter(PNATIVE_LINK Inst, UINT32 InstLabel, PNATIVE_BLOCK JitterB
 			FullText[i] = RndGetRandomNum<UINT32>(0, 255);
 	}
 
+	//Pre and post have the same operand width... This is ungood. Fix
 	STDVECTOR<UINT32> JitSizes;
 	JitGetSizes(Inst->RawDataSize, &JitSizes);
-	printf("Sizes %llu\n", JitSizes.size());
 	INT32 Offset = 0;
 	for (UINT32 Size : JitSizes)
 	{
-		printf("Size %u\n", Size);
-		PNATIVE_LINK JitLink = JitDoForData(&((PUCHAR)Inst->RawData)[Offset], &FullText[Offset], Size, InstLabel, Offset, JitType);
-		if (!JitLink)
+		PNATIVE_LINK PreLink = NULL, PostLink = NULL;
+		if (!JitMakeLinks(&((PUCHAR)Inst->RawData)[Offset], &PreLink, &PostLink, &FullText[Offset], Size, InstLabel, Offset, JitType) || !PreLink || !PostLink)
 		{
-			MLog("JitDoForData Failed.\n");
+			MLog("JitMakeLinks Failed\n");
 			Free(FullText);
 			return FALSE;
 		}
 
-		IrPutLinkBack(JitterBlock, JitLink);
+		IrPutLinkBack(PreBlock, PreLink);
+		IrPutLinkBack(PostBlock, PostLink);
 		Offset += Size;
 	}
-
 	Free(FullText);
-	Inst->LinkData.Flags |= CODE_FLAG_DO_NOT_TOUCH;
 }
 
-BOOLEAN JitMakeText(PNATIVE_BLOCK Block, PNATIVE_BLOCK JitInstructions, STDSTRING CONST& Text, UINT32 JitType)
+BOOLEAN JitMakeText(PNATIVE_BLOCK Block, PNATIVE_BLOCK PreBlock, PNATIVE_BLOCK PostBlock, STDSTRING CONST& Text, JIT_TYPE JitType)
 {
+	if (JitPreType(JitType) == JIT_PRETYPE_RANDOM)
+		JitPreType(JitType) = RndGetRandomNum<UINT32>(1, 3);
+	if (JitPostType(JitType) == JIT_POSTTYPE_RANDOM)
+		JitPostType(JitType) = RndGetRandomNum<INT32>(1, 2);
+
 	UINT32 TextOffset = 0;
-	INT32 LabelState = LmSave(Block->LabelManager);
-	JitInstructions->Front = JitInstructions->Back = NULL;
-	LmClear(&JitInstructions->LabelManager);
+	LABEL_MANAGER LabelState = LmSave(Block->LabelManager);
+	PreBlock->Front = PreBlock->Back = PostBlock->Front = PostBlock->Back = NULL;
+	LmClear(&PreBlock->LabelManager);
+	LmClear(&PostBlock->LabelManager);
 	for (PNATIVE_LINK T = Block->Front; T && T != Block->Back->Next; T = T->Next)
 	{
 		INT32 LabelId;
@@ -194,7 +223,8 @@ BOOLEAN JitMakeText(PNATIVE_BLOCK Block, PNATIVE_BLOCK JitInstructions, STDSTRIN
 			PNATIVE_LINK LabelLink = NrAllocateLink();
 			if (!LabelLink)
 			{
-				NrFreeBlock(JitInstructions);
+				NrFreeBlock(PreBlock);
+				NrFreeBlock(PostBlock);
 				LmRestore(Block->LabelManager, LabelState);
 				return FALSE;
 			}
@@ -202,14 +232,19 @@ BOOLEAN JitMakeText(PNATIVE_BLOCK Block, PNATIVE_BLOCK JitInstructions, STDSTRIN
 			NrInitForLabel(LabelLink, LabelId, NULL, NULL);
 			IrInsertLinkBefore(Block, T, LabelLink);
 		}
-		NATIVE_BLOCK Temp;
-		if (!JitMakeJitter(T, LabelId, &Temp, (PUCHAR)&Text[TextOffset], Text.length() - TextOffset, JitType))
+		NATIVE_BLOCK _PreBlock, _PostBlock;
+		if (!JitMakeJitter(T, LabelId, &_PreBlock, &_PostBlock, (PUCHAR)&Text[TextOffset], Text.length() - TextOffset, JitType))
 		{
-			NrFreeBlock(JitInstructions);
+			NrFreeBlock(PreBlock);
+			NrFreeBlock(PostBlock);
 			LmRestore(Block->LabelManager, LabelState);
 			return FALSE;
 		}
-		IrPutBlockBack(JitInstructions, &Temp);
+
+		T->LinkData.Flags |= CODE_FLAG_DO_NOT_TOUCH;
+		IrPutBlockBack(PreBlock, &_PreBlock);
+		IrPutBlockBack(PostBlock, &_PostBlock);
 		TextOffset += T->RawDataSize;
 	}
+	return TRUE;
 }

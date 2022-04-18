@@ -158,6 +158,57 @@ BOOLEAN NrDeepCopyLink(PNATIVE_LINK Dest, PNATIVE_LINK Source)
 			Free(Dest->RawData);
 			return FALSE;
 		}
+
+		for (PASSEMBLY_PREOP PreOp = Source->PreAssemblyOperations; PreOp; PreOp = PreOp->Next)
+		{
+			PASSEMBLY_PREOP PreOpCopy = AllocateS(ASSEMBLY_PREOP);
+			if (!PreOpCopy)
+			{
+				Free(Dest->RawData);
+				return FALSE;
+			}
+			RtlCopyMemory(PreOpCopy, PreOp, sizeof(ASSEMBLY_PREOP));
+			PreOpCopy->Next = NULL;
+			if (!Dest->PreAssemblyOperations)
+				Dest->PreAssemblyOperations = PreOpCopy;
+			else
+			{
+				for (PASSEMBLY_PREOP T = Dest->PreAssemblyOperations; T; T = T->Next)
+				{
+					if (T->Next == NULL)
+					{
+						T->Next = PreOpCopy;
+						break;
+					}
+				}
+			}
+		}
+
+		for (PASSEMBLY_POSTOP PostOp = Source->PostAssemblyOperations; PostOp; PostOp = PostOp->Next)
+		{
+			PASSEMBLY_POSTOP PostOpCopy = AllocateS(ASSEMBLY_POSTOP);
+			if (!PostOpCopy)
+			{
+				Free(Dest->RawData);
+				return FALSE;
+			}
+			RtlCopyMemory(PostOpCopy, PostOp, sizeof(ASSEMBLY_POSTOP));
+			PostOpCopy->Next = NULL;
+			if (!Dest->PostAssemblyOperations)
+				Dest->PostAssemblyOperations = PostOpCopy;
+			else
+			{
+				for (PASSEMBLY_POSTOP T = Dest->PostAssemblyOperations; T; T = T->Next)
+				{
+					if (T->Next == NULL)
+					{
+						T->Next = PostOpCopy;
+						break;
+					}
+				}
+			}
+		}
+
 	}
 	else if (Source->LinkData.Flags & CODE_FLAG_IS_RAW_DATA)
 	{
@@ -172,6 +223,7 @@ BOOLEAN NrDeepCopyLink(PNATIVE_LINK Dest, PNATIVE_LINK Source)
 	{
 		*(PVOID*)&Dest->LinkData = *(PVOID*)&Source->LinkData;
 	}
+	return TRUE;
 }
 
 BOOLEAN NrDeepCopyBlock(PNATIVE_BLOCK Dest, PNATIVE_LINK Start, PNATIVE_LINK End)
@@ -388,10 +440,10 @@ PREOP_STATUS NrRipRelativePreOp(PNATIVE_LINK Link, PVOID Context)
 }
 
 BOOLEAN NrIsRelativeJump(PNATIVE_LINK Link)
-{
+{/*
 	UINT32 OperandCount = XedDecodedInstNumOperands(&Link->DecodedInst);
 	if (OperandCount < 1)
-		return FALSE;
+		return FALSE;*/
 
 	XED_CATEGORY_ENUM Category = XedDecodedInstGetCategory(&Link->DecodedInst);
 	if (Category != XED_CATEGORY_COND_BR && Category != XED_CATEGORY_UNCOND_BR)
