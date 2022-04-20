@@ -1,6 +1,9 @@
 #include "NativeRope.h"
 #include "Logging.h"
 
+#include <list>
+#include <memory>
+
 
 VOID NrFreeLink(PNATIVE_LINK Link)
 {
@@ -694,6 +697,7 @@ PDECODE_BLOCK NrDecodeToBlocks(PUCHAR StartAddress, PUCHAR MaxAddress, STDVECTOR
 	return DecodeBlock;
 }
 
+//Holy shit this is omegabroken, this doesnt handle loops in any reasonable way at all. it is completely unusable
 BOOLEAN NrDecodeImperfect(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLength)
 {
 	return NrDecodeImperfectEx(Block, RawCode, CodeLength, 0UL);
@@ -743,6 +747,7 @@ BOOLEAN NrDecodeImperfectEx(PNATIVE_BLOCK Block, PVOID RawCode, UINT32 CodeLengt
 			NrFreeBlock(Block);
 			return FALSE;
 		}
+		MLog("DecodeBlocks size: %llu %s\n", DecodeBlocks.size(), XedIClassEnumToString(XedDecodedInstGetIClass(&DecodeBlocks.back()->Block.Back->DecodedInst)));
 
 		if (ClosestDelta != 0) //Handle padding or instructions that are never reached.
 		{
